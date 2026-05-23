@@ -160,6 +160,26 @@ struct SpscFifo
 //  CUDA kernels
 // =============================================================================
 
+// Computes a^b via the identity  a^b = 2^(b * log2(a)),
+// using the GPU's dedicated SFU instructions lg2.approx and ex2.approx.
+// Each is a single-cycle, single-issue op on the SFU (one per warp per 4
+// cycles on Ada), versus ~20 cycles for a full-precision __powf() call.
+//
+// Max relative error: ~2^-20 (~1 ppm) for lg2, same for ex2 — well within
+// the perceptual tolerance of a colour-mapped frequency axis. The only
+// caller is the log-frequency bin-mapping step in spectrumToVboRow*,
+// where a = maxFreq/minFreq (~1000 for 20 Hz–20 kHz) and b in [0, 1].
+// For a <= 0 the result is undefined (lg2 of a non-positive number);
+// callers guarantee a > 0.
+__device__ __forceinline__ float fast_pow (float a, float b)
+{
+    float res;
+    asm("lg2.approx.f32 %0, %1;" : "=f"(res) : "f"(a));
+    res *= b;
+    asm("ex2.approx.f32 %0, %1;" : "=f"(res) : "f"(res));
+    return res;
+}
+
 // ---------------------------------------------------------------------------
 //  applyHannWindowFromRing
 //      Reads FFT_SIZE samples ending at writeIdx from a circular PCM ring on
@@ -237,7 +257,7 @@ __global__ void spectrumToVboRowLive (const cufftComplex* __restrict__ spectrum,
 
     // Log frequency for this output column.
     float t = float (outBin) / float (numOutputBins - 1);
-    float freq = minFreq * powf (maxFreq / minFreq, t);
+    float freq = minFreq * fast_pow (maxFreq / minFreq, t);
     float fftBin = freq * float (fftSize) / sampleRate;
 
     int maxIdx = fftSize / 2;
@@ -294,7 +314,7 @@ __global__ void spectrumToVboBatched (const cufftComplex* __restrict__ spectra, 
     const cufftComplex* spectrum = spectra + (std::size_t)hop * (fftSize / 2 + 1);
 
     float t = float (outBin) / float (numOutputBins - 1);
-    float freq = minFreq * powf (maxFreq / minFreq, t);
+    float freq = minFreq * fast_pow (maxFreq / minFreq, t);
     float fftBin = freq * float (fftSize) / sampleRate;
 
     int maxIdx = fftSize / 2;
