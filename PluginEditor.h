@@ -6,7 +6,7 @@
 class PluginProcessor;
 
 // =============================================================================
-class PluginEditor : public juce::AudioProcessorEditor, public juce::MenuBarModel
+class PluginEditor : public juce::AudioProcessorEditor
 {
   public:
     explicit PluginEditor (PluginProcessor& p);
@@ -20,32 +20,19 @@ class PluginEditor : public juce::AudioProcessorEditor, public juce::MenuBarMode
     // ---- Accessor for PluginProcessor ---------------------------------------
     SpectralWaterfallComponent& getWaterfall () { return waterfall; }
 
-    // ---- juce::MenuBarModel -------------------------------------------------
-    juce::StringArray getMenuBarNames () override;
-    juce::PopupMenu getMenuForIndex (int menuIndex, const juce::String& menuName) override;
-    void menuItemSelected (int menuItemID, int topLevelMenuIndex) override;
-
   private:
     PluginProcessor& processor;
     SpectralWaterfallComponent waterfall;
 
-    // ---- Menu bar -----------------------------------------------------------
-    juce::MenuBarComponent menuBar;
-
-    // ---- Mode-switch toolbar ------------------------------------------------
+    // ---- Toolbar ------------------------------------------------------------
     juce::TextButton liveButton{"Live"};
     juce::TextButton fileButton{"Load File..."};
+    juce::TextButton aboutButton{"?"};
     juce::FileChooser fileChooser{"Load audio file for analysis",
                                   juce::File::getSpecialLocation (juce::File::userMusicDirectory),
                                   "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg"};
 
-    static constexpr int kMenuBarH = 24;
     static constexpr int kToolbarH = 36;
-
-    enum MenuItemIDs
-    {
-        aboutItem = 1
-    };
 
     void onLiveClicked ();
     void onFileClicked ();

@@ -5,27 +5,26 @@
 // =============================================================================
 PluginEditor::PluginEditor (PluginProcessor& p) : AudioProcessorEditor (&p), processor (p)
 {
-    // ---- Menu bar -----------------------------------------------------------
-    menuBar.setModel (this);
-    addAndMakeVisible (menuBar);
-
     // ---- Waterfall ----------------------------------------------------------
     addAndMakeVisible (waterfall);
 
     // ---- Toolbar buttons ----------------------------------------------------
     addAndMakeVisible (liveButton);
     addAndMakeVisible (fileButton);
+    addAndMakeVisible (aboutButton);
 
     liveButton.setClickingTogglesState (false);
     fileButton.setClickingTogglesState (false);
+    aboutButton.setClickingTogglesState (false);
 
     liveButton.onClick = [this] { onLiveClicked (); };
     fileButton.onClick = [this] { onFileClicked (); };
+    aboutButton.onClick = [] { AboutComponent::show (); };
 
     // ---- Initial size -------------------------------------------------------
-    setSize (1024, 512 + kToolbarH + kMenuBarH);
+    setSize (1024, 512 + kToolbarH);
     setResizable (true, true);
-    setResizeLimits (512, 256 + kToolbarH + kMenuBarH, 2560, 1440 + kToolbarH + kMenuBarH);
+    setResizeLimits (512, 256 + kToolbarH, 2560, 1440 + kToolbarH);
 
     // ---- Forward sample rate ------------------------------------------------
     const double sr = p.getSampleRate ();
@@ -35,7 +34,6 @@ PluginEditor::PluginEditor (PluginProcessor& p) : AudioProcessorEditor (&p), pro
 
 PluginEditor::~PluginEditor ()
 {
-    menuBar.setModel (nullptr);
     processor.unregisterEditor (this);
 }
 
@@ -51,11 +49,10 @@ void PluginEditor::resized ()
 {
     auto area = getLocalBounds ();
 
-    menuBar.setBounds (area.removeFromTop (kMenuBarH));
-
     auto toolbar = area.removeFromTop (kToolbarH);
     liveButton.setBounds (toolbar.removeFromLeft (80).reduced (4));
     fileButton.setBounds (toolbar.removeFromLeft (120).reduced (4));
+    aboutButton.setBounds (toolbar.removeFromRight (36).reduced (4));
 
     waterfall.setBounds (area);
 }
@@ -68,26 +65,6 @@ void PluginEditor::parentHierarchyChanged ()
     // Works in standalone mode; most plugin hosts ignore setIcon().
     if (auto* peer = getPeer ())
         peer->setIcon (AboutComponent::createIcon (256));
-}
-
-// ---------------------------------------------------------------------------
-juce::StringArray PluginEditor::getMenuBarNames ()
-{
-    return {"Help"};
-}
-
-juce::PopupMenu PluginEditor::getMenuForIndex (int menuIndex, const juce::String&)
-{
-    juce::PopupMenu menu;
-    if (menuIndex == 0)
-        menu.addItem (aboutItem, "About Spectral Waterfall\u2026");
-    return menu;
-}
-
-void PluginEditor::menuItemSelected (int menuItemID, int /*topLevelMenuIndex*/)
-{
-    if (menuItemID == aboutItem)
-        AboutComponent::show ();
 }
 
 // =============================================================================
