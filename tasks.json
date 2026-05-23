@@ -1,0 +1,74 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            // Compiles CudaProcessor.cu into CudaProcessor.o.
+            // This is the only file that goes through nvcc; everything else
+            // is compiled by your normal JUCE / CMake / Projucer toolchain.
+            // Targeting sm_89 (Ada Lovelace — RTX 4070 Laptop).
+            "label": "CUDA: compile CudaProcessor",
+            "type": "shell",
+            "command": "nvcc",
+            "args": [
+                "-std=c++17",
+                "-O3",
+                "-arch=sm_89",
+                "-Xcompiler", "/MD",
+                "-I${workspaceFolder}",
+                "-c", "${workspaceFolder}/CudaProcessor.cu",
+                "-o", "${workspaceFolder}/CudaProcessor.obj"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            // nvcc error format matches gcc closely enough that the built-in
+            // $gcc matcher picks up file / line / column correctly in the
+            // Problems panel and editor gutter.
+            "problemMatcher": "$gcc"
+        },
+        {
+            // Debug build: disables -O3, enables device-side debug info and
+            // host debug symbols. Use this when running cuda-gdb or
+            // Nsight's source-level CUDA debugger.
+            "label": "CUDA: compile CudaProcessor (debug)",
+            "type": "shell",
+            "command": "nvcc",
+            "args": [
+                "-std=c++17",
+                "-G",           // device-side debug info (disables optimiser)
+                "-g",           // host debug symbols
+                "-arch=sm_89",
+                "-Xcompiler", "/MDd",
+                "-I${workspaceFolder}",
+                "-c", "${workspaceFolder}/CudaProcessor.cu",
+                "-o", "${workspaceFolder}/CudaProcessor.obj"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            // Removes the compiled object so the next build starts clean.
+            "label": "CUDA: clean",
+            "type": "shell",
+            "command": "cmd",
+            "args": ["/c", "del", "/f", "/q", "${workspaceFolder}\\CudaProcessor.obj"],
+            "group": "build",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

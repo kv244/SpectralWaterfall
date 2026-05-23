@@ -1,0 +1,7 @@
+build/
+.claude/
+*.obj
+*.o
+*.lib
+*.pdb
+.vs/
