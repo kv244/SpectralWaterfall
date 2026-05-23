@@ -193,24 +193,25 @@ bool SpectralWaterfallComponent::loadStaticFile (const juce::File& file)
         return false;
     }
 
-    // Decode into a 2-channel temp, then sum to mono.
+    // Decode into a multichannel temp buffer, then mix to mono in one pass.
+    // Scaling is folded into the accumulation loop to avoid a separate pass.
     juce::AudioBuffer<float> tmp (numChans, numSamples);
     reader->read (&tmp, 0, numSamples, 0, true, numChans > 1);
 
     juce::AudioBuffer<float> mono (1, numSamples);
-    mono.clear ();
+    const float scale = 1.0f / static_cast<float> (numChans);
     auto* m = mono.getWritePointer (0);
-    for (int ch = 0; ch < numChans; ++ch)
+
+    // Copy channel 0 scaled — avoids a zero-init pass.
+    const auto* src0 = tmp.getReadPointer (0);
+    for (int i = 0; i < numSamples; ++i)
+        m[i] = src0[i] * scale;
+
+    for (int ch = 1; ch < numChans; ++ch)
     {
         const auto* src = tmp.getReadPointer (ch);
         for (int i = 0; i < numSamples; ++i)
-            m[i] += src[i];
-    }
-    if (numChans > 1)
-    {
-        const float scale = 1.0f / static_cast<float> (numChans);
-        for (int i = 0; i < numSamples; ++i)
-            m[i] *= scale;
+            m[i] += src[i] * scale;
     }
 
     {

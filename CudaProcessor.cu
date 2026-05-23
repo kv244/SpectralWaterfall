@@ -361,6 +361,7 @@ struct CudaProcessor::Impl
     cufftHandle liveFftPlan = 0; // single-batch R2C
     cufftHandle batchPlan = 0; // many-batch R2C for static
     bool batchPlanValid = false;
+    int batchPlanHops = 0; // batch size the current plan was built for
 
     // Device buffers (live)
     float* dPcmRing = nullptr; // PCM_RING_SIZE floats
@@ -451,11 +452,19 @@ struct CudaProcessor::Impl
             cudaFree (dStaticSpectra);
             dStaticSpectra = nullptr;
         }
+        // batchPlan is intentionally NOT destroyed here — it is reused by
+        // processStaticFile when the next file has the same hop count.
+        // Call freeBatchPlan() explicitly (from shutdown()) to fully release it.
+    }
+
+    void freeBatchPlan () noexcept
+    {
         if (batchPlanValid)
         {
             cufftDestroy (batchPlan);
             batchPlan = 0;
             batchPlanValid = false;
+            batchPlanHops = 0;
         }
     }
 
@@ -588,6 +597,7 @@ void CudaProcessor::shutdown ()
         impl->liveFftPlan = 0;
     }
     impl->freeStaticBuffers ();
+    impl->freeBatchPlan ();
     impl->freeLiveBuffers ();
 
     if (impl->hStagingPinned)
@@ -759,15 +769,22 @@ bool CudaProcessor::processStaticFile (const float* pcmHost, std::size_t totalSa
             HOP_SIZE);
     }
 
-    // -- Build the batched cuFFT plan ----------------------------------------
-    int n[1] = {FFT_SIZE};
-    int inEmb[1] = {FFT_SIZE};
-    int otEmb[1] = {FFT_SIZE / 2 + 1};
-    CUFFT_CHECK (cufftPlanMany (&impl->batchPlan,
-                                /*rank*/ 1, n, inEmb, /*istride*/ 1, /*idist*/ FFT_SIZE, otEmb,
-                                /*ostride*/ 1, /*odist*/ FFT_SIZE / 2 + 1, CUFFT_R2C, numHops));
-    impl->batchPlanValid = true;
-    CUFFT_CHECK (cufftSetStream (impl->batchPlan, impl->stream));
+    // -- Build (or reuse) the batched cuFFT plan -----------------------------
+    // cufftPlanMany takes 10–50 ms for large batches; reuse the existing plan
+    // when the hop count matches the last file loaded.
+    if (!impl->batchPlanValid || impl->batchPlanHops != numHops)
+    {
+        impl->freeBatchPlan ();
+        int n[1] = {FFT_SIZE};
+        int inEmb[1] = {FFT_SIZE};
+        int otEmb[1] = {FFT_SIZE / 2 + 1};
+        CUFFT_CHECK (cufftPlanMany (&impl->batchPlan,
+                                    /*rank*/ 1, n, inEmb, /*istride*/ 1, /*idist*/ FFT_SIZE, otEmb,
+                                    /*ostride*/ 1, /*odist*/ FFT_SIZE / 2 + 1, CUFFT_R2C, numHops));
+        impl->batchPlanValid = true;
+        impl->batchPlanHops = numHops;
+        CUFFT_CHECK (cufftSetStream (impl->batchPlan, impl->stream));
+    }
 
     // -- Execute the batched FFT ---------------------------------------------
     CUFFT_CHECK (cufftExecR2C (impl->batchPlan, impl->dStaticWindow, impl->dStaticSpectra));

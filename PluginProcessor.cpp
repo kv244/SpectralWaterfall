@@ -73,18 +73,29 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     // host is misbehaving. Guard without allocating; just truncate.
     const int n = juce::jmin (numSamples, (int)monoScratch.size ());
 
-    // Mix all input channels into monoScratch (stack-local, no alloc).
-    std::fill (monoScratch.begin (), monoScratch.begin () + n, 0.0f);
+    if (numChans <= 0)
+        return;
 
-    const float inv = (numChans > 0) ? (1.0f / (float)numChans) : 1.0f;
-    for (int c = 0; c < numChans; ++c)
+    const float inv = 1.0f / (float)numChans;
+
+    // Copy channel 0 scaled — avoids a separate zero-init pass.
+    const float* src0 = buffer.getReadPointer (0);
+    for (int i = 0; i < n; ++i)
+        monoScratch[i] = src0[i] * inv;
+
+    // Accumulate remaining channels.
+    for (int c = 1; c < numChans; ++c)
     {
         const float* src = buffer.getReadPointer (c);
         for (int i = 0; i < n; ++i)
             monoScratch[i] += src[i] * inv;
     }
 
-    editor->getWaterfall ().pushAudioBlock (monoScratch.data (), n);
+    const int accepted = editor->getWaterfall ().pushAudioBlock (monoScratch.data (), n);
+    if (accepted < n)
+    {
+        DBG ("[Waterfall] FIFO full — dropped " << (n - accepted) << " samples");
+    }
 }
 
 // =============================================================================
