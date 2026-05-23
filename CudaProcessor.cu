@@ -26,12 +26,12 @@
 // Some CUDA distributions expect a GL header before cuda_gl_interop.h on
 // certain platforms. Guard for portability.
 #if defined(_WIN32)
-  #include <windows.h>
-  #include <GL/gl.h>
+#include <windows.h>
+#include <GL/gl.h>
 #elif defined(__APPLE__)
-  #include <OpenGL/gl3.h>
+#include <OpenGL/gl3.h>
 #else
-  #include <GL/gl.h>
+#include <GL/gl.h>
 #endif
 
 #include <cuda_runtime.h>
@@ -49,45 +49,51 @@
 // -----------------------------------------------------------------------------
 //  Error helpers
 // -----------------------------------------------------------------------------
-#define CUDA_CHECK(expr)                                                       \
-    do {                                                                       \
-        cudaError_t _e = (expr);                                               \
-        if (_e != cudaSuccess) {                                               \
-            std::fprintf (stderr, "[CUDA] %s @ %s:%d : %s\n",                  \
-                          #expr, __FILE__, __LINE__, cudaGetErrorString (_e)); \
-            return false;                                                      \
-        }                                                                      \
+#define CUDA_CHECK(expr)                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        cudaError_t _e = (expr);                                                                   \
+        if (_e != cudaSuccess)                                                                     \
+        {                                                                                          \
+            std::fprintf (stderr, "[CUDA] %s @ %s:%d : %s\n", #expr, __FILE__, __LINE__,           \
+                          cudaGetErrorString (_e));                                                \
+            return false;                                                                          \
+        }                                                                                          \
     } while (0)
 
-#define CUFFT_CHECK(expr)                                                      \
-    do {                                                                       \
-        cufftResult _r = (expr);                                               \
-        if (_r != CUFFT_SUCCESS) {                                             \
-            std::fprintf (stderr, "[cuFFT] %s @ %s:%d : %d\n",                 \
-                          #expr, __FILE__, __LINE__, int (_r));                \
-            return false;                                                      \
-        }                                                                      \
+#define CUFFT_CHECK(expr)                                                                          \
+    do                                                                                             \
+    {                                                                                              \
+        cufftResult _r = (expr);                                                                   \
+        if (_r != CUFFT_SUCCESS)                                                                   \
+        {                                                                                          \
+            std::fprintf (stderr, "[cuFFT] %s @ %s:%d : %d\n", #expr, __FILE__, __LINE__,          \
+                          int (_r));                                                               \
+            return false;                                                                          \
+        }                                                                                          \
     } while (0)
 
 // Non-returning soft check, for the real-time render path.
-#define CUDA_SOFT(expr)                                                        \
-    do {                                                                       \
-        cudaError_t _e = (expr);                                               \
-        if (_e != cudaSuccess) {                                               \
-            std::fprintf (stderr, "[CUDA-soft] %s : %s\n",                     \
-                          #expr, cudaGetErrorString (_e));                     \
-        }                                                                      \
+#define CUDA_SOFT(expr)                                                                            \
+    do                                                                                             \
+    {                                                                                              \
+        cudaError_t _e = (expr);                                                                   \
+        if (_e != cudaSuccess)                                                                     \
+        {                                                                                          \
+            std::fprintf (stderr, "[CUDA-soft] %s : %s\n", #expr, cudaGetErrorString (_e));        \
+        }                                                                                          \
     } while (0)
 
 // Non-returning soft check for cuFFT — use on the render path where we must
 // not skip cleanup (e.g. VBO unmap) on FFT error.
-#define CUFFT_SOFT(expr)                                                       \
-    do {                                                                       \
-        cufftResult _r = (expr);                                               \
-        if (_r != CUFFT_SUCCESS) {                                             \
-            std::fprintf (stderr, "[cuFFT-soft] %s : %d\n",                   \
-                          #expr, int (_r));                                    \
-        }                                                                      \
+#define CUFFT_SOFT(expr)                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        cufftResult _r = (expr);                                                                   \
+        if (_r != CUFFT_SUCCESS)                                                                   \
+        {                                                                                          \
+            std::fprintf (stderr, "[cuFFT-soft] %s : %d\n", #expr, int (_r));                      \
+        }                                                                                          \
     } while (0)
 
 // -----------------------------------------------------------------------------
@@ -103,36 +109,36 @@ struct SpscFifo
     // Size is fixed at construction. Must be power of two for fast wrap.
     int capacity = 0;
     std::vector<float> buffer;
-    std::atomic<int>   writeIdx { 0 };  // monotonically increasing
-    std::atomic<int>   readIdx  { 0 };
+    std::atomic<int> writeIdx{0}; // monotonically increasing
+    std::atomic<int> readIdx{0};
 
     void init (int capacityPow2)
     {
         // round to next power of two
         int n = 1;
-        while (n < capacityPow2) n <<= 1;
+        while (n < capacityPow2)
+            n <<= 1;
         capacity = n;
         buffer.assign (static_cast<std::size_t> (capacity), 0.0f);
         writeIdx.store (0);
-        readIdx.store  (0);
+        readIdx.store (0);
     }
 
-    int  mask() const noexcept { return capacity - 1; }
-    int  used() const noexcept
+    int mask () const noexcept { return capacity - 1; }
+    int used () const noexcept
     {
-        return writeIdx.load (std::memory_order_acquire)
-             - readIdx .load (std::memory_order_acquire);
+        return writeIdx.load (std::memory_order_acquire) - readIdx.load (std::memory_order_acquire);
     }
-    int  free() const noexcept { return capacity - used(); }
+    int free () const noexcept { return capacity - used (); }
 
     // Producer side. Audio thread.
     int push (const float* src, int n) noexcept
     {
-        int avail = free();
+        int avail = free ();
         int toWrite = n < avail ? n : avail;
         int w = writeIdx.load (std::memory_order_relaxed);
         for (int i = 0; i < toWrite; ++i)
-            buffer[(w + i) & mask()] = src[i];
+            buffer[(w + i) & mask ()] = src[i];
         writeIdx.store (w + toWrite, std::memory_order_release);
         return toWrite;
     }
@@ -140,11 +146,11 @@ struct SpscFifo
     // Consumer side. GL thread.
     int pop (float* dst, int n) noexcept
     {
-        int avail = used();
+        int avail = used ();
         int toRead = n < avail ? n : avail;
         int r = readIdx.load (std::memory_order_relaxed);
         for (int i = 0; i < toRead; ++i)
-            dst[i] = buffer[(r + i) & mask()];
+            dst[i] = buffer[(r + i) & mask ()];
         readIdx.store (r + toRead, std::memory_order_release);
         return toRead;
     }
@@ -161,14 +167,13 @@ struct SpscFifo
 //      contiguous FFT_SIZE-length real signal ready for cuFFT R2C.
 // ---------------------------------------------------------------------------
 __global__ void applyHannWindowFromRing (const float* __restrict__ pcmRing,
-                                         int                       writeIdx,   // one past last written sample
-                                         int                       ringSize,
-                                         const float* __restrict__ hannLUT,
-                                         float* __restrict__       windowedOut,
-                                         int                       fftSize)
+                                         int writeIdx, // one past last written sample
+                                         int ringSize, const float* __restrict__ hannLUT,
+                                         float* __restrict__ windowedOut, int fftSize)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= fftSize) return;
+    if (i >= fftSize)
+        return;
 
     // Sample index in the ring corresponding to position i in the window.
     // The most recent sample sits at writeIdx-1; the window extends back
@@ -196,21 +201,19 @@ __global__ void applyHannWindowFromRing (const float* __restrict__ pcmRing,
 //          gridDim.y = numHops
 //          gridDim.x = ceil(fftSize / blockDim.x)
 // ---------------------------------------------------------------------------
-__global__ void applyHannWindowBatched (const float* __restrict__ pcm,
-                                        std::size_t               totalSamples,
+__global__ void applyHannWindowBatched (const float* __restrict__ pcm, std::size_t totalSamples,
                                         const float* __restrict__ hannLUT,
-                                        float* __restrict__       windowedOut,
-                                        int                       fftSize,
-                                        int                       hopSize)
+                                        float* __restrict__ windowedOut, int fftSize, int hopSize)
 {
-    int i   = blockIdx.x * blockDim.x + threadIdx.x;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
     int hop = blockIdx.y;
-    if (i >= fftSize) return;
+    if (i >= fftSize)
+        return;
 
-    std::size_t srcIdx = (std::size_t) hop * (std::size_t) hopSize + (std::size_t) i;
+    std::size_t srcIdx = (std::size_t)hop * (std::size_t)hopSize + (std::size_t)i;
     float sample = (srcIdx < totalSamples) ? pcm[srcIdx] : 0.0f;
 
-    windowedOut[(std::size_t) hop * fftSize + i] = sample * hannLUT[i];
+    windowedOut[(std::size_t)hop * fftSize + i] = sample * hannLUT[i];
 }
 
 // ---------------------------------------------------------------------------
@@ -223,48 +226,54 @@ __global__ void applyHannWindowBatched (const float* __restrict__ pcm,
 //
 //      vbo points at the *whole* mapped VBO; we offset by rowSlot.
 // ---------------------------------------------------------------------------
-__global__ void spectrumToVboRowLive (const cufftComplex* __restrict__ spectrum,
-                                      int                              fftSize,
-                                      float                            sampleRate,
-                                      float* __restrict__              vbo,
-                                      int                              rowSlot,
-                                      int                              numOutputBins,
-                                      float                            minFreq,
-                                      float                            maxFreq,
-                                      float                            minDb,
-                                      float                            maxDb)
+__global__ void spectrumToVboRowLive (const cufftComplex* __restrict__ spectrum, int fftSize,
+                                      float sampleRate, float* __restrict__ vbo, int rowSlot,
+                                      int numOutputBins, float minFreq, float maxFreq, float minDb,
+                                      float maxDb)
 {
     int outBin = blockIdx.x * blockDim.x + threadIdx.x;
-    if (outBin >= numOutputBins) return;
+    if (outBin >= numOutputBins)
+        return;
 
     // Log frequency for this output column.
-    float t      = float (outBin) / float (numOutputBins - 1);
-    float freq   = minFreq * powf (maxFreq / minFreq, t);
+    float t = float (outBin) / float (numOutputBins - 1);
+    float freq = minFreq * powf (maxFreq / minFreq, t);
     float fftBin = freq * float (fftSize) / sampleRate;
 
-    int   maxIdx = fftSize / 2;
-    int   b0     = (int) floorf (fftBin);
-    int   b1     = b0 + 1;
-    float frac   = fftBin - (float) b0;
-    if (b0 < 0)      { b0 = 0; b1 = 0; frac = 0.f; }
-    if (b1 > maxIdx) { b1 = maxIdx; }
-    if (b0 > maxIdx) { b0 = maxIdx; }
+    int maxIdx = fftSize / 2;
+    int b0 = (int)floorf (fftBin);
+    int b1 = b0 + 1;
+    float frac = fftBin - (float)b0;
+    if (b0 < 0)
+    {
+        b0 = 0;
+        b1 = 0;
+        frac = 0.f;
+    }
+    if (b1 > maxIdx)
+    {
+        b1 = maxIdx;
+    }
+    if (b0 > maxIdx)
+    {
+        b0 = maxIdx;
+    }
 
     cufftComplex c0 = spectrum[b0];
     cufftComplex c1 = spectrum[b1];
 
     float mag0 = sqrtf (c0.x * c0.x + c0.y * c0.y);
     float mag1 = sqrtf (c1.x * c1.x + c1.y * c1.y);
-    float mag  = mag0 * (1.0f - frac) + mag1 * frac;
+    float mag = mag0 * (1.0f - frac) + mag1 * frac;
 
     // Scale: cuFFT R2C returns un-normalised; 2/N gives single-sided amp.
     mag *= (2.0f / float (fftSize));
 
     float db = 20.0f * log10f (fmaxf (mag, 1e-10f));
-    float n  = (db - minDb) / (maxDb - minDb);
+    float n = (db - minDb) / (maxDb - minDb);
     n = fminf (fmaxf (n, 0.0f), 1.0f);
 
-    vbo[(std::size_t) rowSlot * numOutputBins + outBin] = n;
+    vbo[(std::size_t)rowSlot * numOutputBins + outBin] = n;
 }
 
 // ---------------------------------------------------------------------------
@@ -272,49 +281,55 @@ __global__ void spectrumToVboRowLive (const cufftComplex* __restrict__ spectrum,
 //      Static-file post-FFT: 2D grid. y indexes hops, x indexes output bins.
 //      One kernel call populates the entire static VBO.
 // ---------------------------------------------------------------------------
-__global__ void spectrumToVboBatched (const cufftComplex* __restrict__ spectra,
-                                      int                              fftSize,
-                                      float                            sampleRate,
-                                      float* __restrict__              vbo,
-                                      int                              numOutputBins,
-                                      int                              numHops,
-                                      float                            minFreq,
-                                      float                            maxFreq,
-                                      float                            minDb,
-                                      float                            maxDb)
+__global__ void spectrumToVboBatched (const cufftComplex* __restrict__ spectra, int fftSize,
+                                      float sampleRate, float* __restrict__ vbo, int numOutputBins,
+                                      int numHops, float minFreq, float maxFreq, float minDb,
+                                      float maxDb)
 {
     int outBin = blockIdx.x * blockDim.x + threadIdx.x;
-    int hop    = blockIdx.y;
-    if (outBin >= numOutputBins || hop >= numHops) return;
+    int hop = blockIdx.y;
+    if (outBin >= numOutputBins || hop >= numHops)
+        return;
 
-    const cufftComplex* spectrum = spectra + (std::size_t) hop * (fftSize / 2 + 1);
+    const cufftComplex* spectrum = spectra + (std::size_t)hop * (fftSize / 2 + 1);
 
-    float t      = float (outBin) / float (numOutputBins - 1);
-    float freq   = minFreq * powf (maxFreq / minFreq, t);
+    float t = float (outBin) / float (numOutputBins - 1);
+    float freq = minFreq * powf (maxFreq / minFreq, t);
     float fftBin = freq * float (fftSize) / sampleRate;
 
-    int   maxIdx = fftSize / 2;
-    int   b0     = (int) floorf (fftBin);
-    int   b1     = b0 + 1;
-    float frac   = fftBin - (float) b0;
-    if (b0 < 0)      { b0 = 0; b1 = 0; frac = 0.f; }
-    if (b1 > maxIdx) { b1 = maxIdx; }
-    if (b0 > maxIdx) { b0 = maxIdx; }
+    int maxIdx = fftSize / 2;
+    int b0 = (int)floorf (fftBin);
+    int b1 = b0 + 1;
+    float frac = fftBin - (float)b0;
+    if (b0 < 0)
+    {
+        b0 = 0;
+        b1 = 0;
+        frac = 0.f;
+    }
+    if (b1 > maxIdx)
+    {
+        b1 = maxIdx;
+    }
+    if (b0 > maxIdx)
+    {
+        b0 = maxIdx;
+    }
 
     cufftComplex c0 = spectrum[b0];
     cufftComplex c1 = spectrum[b1];
 
     float mag0 = sqrtf (c0.x * c0.x + c0.y * c0.y);
     float mag1 = sqrtf (c1.x * c1.x + c1.y * c1.y);
-    float mag  = mag0 * (1.0f - frac) + mag1 * frac;
+    float mag = mag0 * (1.0f - frac) + mag1 * frac;
 
     mag *= (2.0f / float (fftSize));
 
     float db = 20.0f * log10f (fmaxf (mag, 1e-10f));
-    float n  = (db - minDb) / (maxDb - minDb);
+    float n = (db - minDb) / (maxDb - minDb);
     n = fminf (fmaxf (n, 0.0f), 1.0f);
 
-    vbo[(std::size_t) hop * numOutputBins + outBin] = n;
+    vbo[(std::size_t)hop * numOutputBins + outBin] = n;
 }
 
 // =============================================================================
@@ -322,46 +337,46 @@ __global__ void spectrumToVboBatched (const cufftComplex* __restrict__ spectra,
 // =============================================================================
 struct CudaProcessor::Impl
 {
-    cudaStream_t  stream      = nullptr;
-    cufftHandle   liveFftPlan = 0;            // single-batch R2C
-    cufftHandle   batchPlan   = 0;            // many-batch R2C for static
-    bool          batchPlanValid = false;
+    cudaStream_t stream = nullptr;
+    cufftHandle liveFftPlan = 0; // single-batch R2C
+    cufftHandle batchPlan = 0; // many-batch R2C for static
+    bool batchPlanValid = false;
 
     // Device buffers (live)
-    float*        dPcmRing       = nullptr;   // PCM_RING_SIZE floats
-    float*        dHannLUT       = nullptr;   // FFT_SIZE floats
-    float*        dWindowed      = nullptr;   // FFT_SIZE floats
-    cufftComplex* dSpectrum      = nullptr;   // FFT_SIZE/2+1 cufftComplex
+    float* dPcmRing = nullptr; // PCM_RING_SIZE floats
+    float* dHannLUT = nullptr; // FFT_SIZE floats
+    float* dWindowed = nullptr; // FFT_SIZE floats
+    cufftComplex* dSpectrum = nullptr; // FFT_SIZE/2+1 cufftComplex
 
     // Device buffers (static)
-    float*        dStaticPcm     = nullptr;   // full file
-    float*        dStaticWindow  = nullptr;   // numHops * FFT_SIZE
-    cufftComplex* dStaticSpectra = nullptr;   // numHops * (FFT_SIZE/2+1)
+    float* dStaticPcm = nullptr; // full file
+    float* dStaticWindow = nullptr; // numHops * FFT_SIZE
+    cufftComplex* dStaticSpectra = nullptr; // numHops * (FFT_SIZE/2+1)
 
     // CUDA-GL interop
-    cudaGraphicsResource* cudaVboRes      = nullptr;  // currently registered VBO
-    unsigned int          registeredVbo   = 0;
+    cudaGraphicsResource* cudaVboRes = nullptr; // currently registered VBO
+    unsigned int registeredVbo = 0;
 
     // Host-side staging for FIFO->GPU
-    float*        hStagingPinned = nullptr;   // pinned host memory, HOP_SIZE floats
+    float* hStagingPinned = nullptr; // pinned host memory, HOP_SIZE floats
 
     // FIFO between audio thread and GL thread.
-    SpscFifo      fifo;
+    SpscFifo fifo;
 
     // Ring-buffer write head (in samples, monotonically increasing modulo).
-    int           pcmWriteIdx = 0;
+    int pcmWriteIdx = 0;
 
     // Cached state
-    double        sampleRate  = 44100.0;
-    int           liveRowSlot = 0;            // round-robin row in [0, NUM_HISTORY_ROWS)
+    double sampleRate = 44100.0;
+    int liveRowSlot = 0; // round-robin row in [0, NUM_HISTORY_ROWS)
 
     // Sub-helpers ------------------------------------------------------------
 
-    bool allocLiveBuffers()
+    bool allocLiveBuffers ()
     {
-        CUDA_CHECK (cudaMalloc (&dPcmRing,  sizeof (float) * PCM_RING_SIZE));
+        CUDA_CHECK (cudaMalloc (&dPcmRing, sizeof (float) * PCM_RING_SIZE));
         CUDA_CHECK (cudaMemsetAsync (dPcmRing, 0, sizeof (float) * PCM_RING_SIZE, stream));
-        CUDA_CHECK (cudaMalloc (&dHannLUT,  sizeof (float) * FFT_SIZE));
+        CUDA_CHECK (cudaMalloc (&dHannLUT, sizeof (float) * FFT_SIZE));
         CUDA_CHECK (cudaMalloc (&dWindowed, sizeof (float) * FFT_SIZE));
         CUDA_CHECK (cudaMalloc (&dSpectrum, sizeof (cufftComplex) * (FFT_SIZE / 2 + 1)));
 
@@ -369,26 +384,53 @@ struct CudaProcessor::Impl
         std::vector<float> hann (FFT_SIZE);
         constexpr double TWO_PI = 6.283185307179586476925286766559;
         for (int i = 0; i < FFT_SIZE; ++i)
-            hann[(std::size_t) i] = 0.5f * (1.0f - std::cos ((float) (TWO_PI * i / (FFT_SIZE - 1))));
-        CUDA_CHECK (cudaMemcpyAsync (dHannLUT, hann.data(),
-                                     sizeof (float) * FFT_SIZE,
+            hann[(std::size_t)i] = 0.5f * (1.0f - std::cos ((float)(TWO_PI * i / (FFT_SIZE - 1))));
+        CUDA_CHECK (cudaMemcpyAsync (dHannLUT, hann.data (), sizeof (float) * FFT_SIZE,
                                      cudaMemcpyHostToDevice, stream));
         return true;
     }
 
-    void freeLiveBuffers() noexcept
+    void freeLiveBuffers () noexcept
     {
-        if (dPcmRing)  { cudaFree (dPcmRing);  dPcmRing  = nullptr; }
-        if (dHannLUT)  { cudaFree (dHannLUT);  dHannLUT  = nullptr; }
-        if (dWindowed) { cudaFree (dWindowed); dWindowed = nullptr; }
-        if (dSpectrum) { cudaFree (dSpectrum); dSpectrum = nullptr; }
+        if (dPcmRing)
+        {
+            cudaFree (dPcmRing);
+            dPcmRing = nullptr;
+        }
+        if (dHannLUT)
+        {
+            cudaFree (dHannLUT);
+            dHannLUT = nullptr;
+        }
+        if (dWindowed)
+        {
+            cudaFree (dWindowed);
+            dWindowed = nullptr;
+        }
+        if (dSpectrum)
+        {
+            cudaFree (dSpectrum);
+            dSpectrum = nullptr;
+        }
     }
 
-    void freeStaticBuffers() noexcept
+    void freeStaticBuffers () noexcept
     {
-        if (dStaticPcm)     { cudaFree (dStaticPcm);     dStaticPcm     = nullptr; }
-        if (dStaticWindow)  { cudaFree (dStaticWindow);  dStaticWindow  = nullptr; }
-        if (dStaticSpectra) { cudaFree (dStaticSpectra); dStaticSpectra = nullptr; }
+        if (dStaticPcm)
+        {
+            cudaFree (dStaticPcm);
+            dStaticPcm = nullptr;
+        }
+        if (dStaticWindow)
+        {
+            cudaFree (dStaticWindow);
+            dStaticWindow = nullptr;
+        }
+        if (dStaticSpectra)
+        {
+            cudaFree (dStaticSpectra);
+            dStaticSpectra = nullptr;
+        }
         if (batchPlanValid)
         {
             cufftDestroy (batchPlan);
@@ -397,12 +439,12 @@ struct CudaProcessor::Impl
         }
     }
 
-    void unregisterVbo() noexcept
+    void unregisterVbo () noexcept
     {
         if (cudaVboRes != nullptr)
         {
             cudaGraphicsUnregisterResource (cudaVboRes);
-            cudaVboRes    = nullptr;
+            cudaVboRes = nullptr;
             registeredVbo = 0;
         }
     }
@@ -415,25 +457,27 @@ struct CudaProcessor::Impl
 void CudaProcessor::getCudaVersions (int& runtimeVersion, int& driverVersion) noexcept
 {
     runtimeVersion = 0;
-    driverVersion  = 0;
+    driverVersion = 0;
     cudaRuntimeGetVersion (&runtimeVersion);
-    cudaDriverGetVersion  (&driverVersion);
+    cudaDriverGetVersion (&driverVersion);
 }
 
-CudaProcessor::CudaProcessor() = default;
+CudaProcessor::CudaProcessor () = default;
 
-CudaProcessor::~CudaProcessor()
+CudaProcessor::~CudaProcessor ()
 {
-    shutdown();
+    shutdown ();
 }
 
 // -----------------------------------------------------------------------------
 bool CudaProcessor::initialize (unsigned int glVboHandle, double sampleRate)
 {
-    if (initialized) return true;
+    if (initialized)
+        return true;
 
-    impl = new (std::nothrow) Impl();
-    if (impl == nullptr) return false;
+    impl = new (std::nothrow) Impl ();
+    if (impl == nullptr)
+        return false;
 
     impl->sampleRate = sampleRate;
 
@@ -443,7 +487,7 @@ bool CudaProcessor::initialize (unsigned int glVboHandle, double sampleRate)
     auto fail = [this] (const char* msg) -> bool
     {
         std::fprintf (stderr, "[CUDA] initialize: %s\n", msg);
-        shutdown();
+        shutdown ();
         return false;
     };
 
@@ -459,12 +503,11 @@ bool CudaProcessor::initialize (unsigned int glVboHandle, double sampleRate)
         return fail ("cudaStreamCreateWithFlags failed");
 
     // Pinned staging for the audio-thread -> GL-thread handoff.
-    if (cudaHostAlloc ((void**) &impl->hStagingPinned,
-                       sizeof (float) * HOP_SIZE,
+    if (cudaHostAlloc ((void**)&impl->hStagingPinned, sizeof (float) * HOP_SIZE,
                        cudaHostAllocDefault) != cudaSuccess)
         return fail ("cudaHostAlloc for staging buffer failed");
 
-    if (! impl->allocLiveBuffers())
+    if (!impl->allocLiveBuffers ())
         return fail ("allocLiveBuffers failed");
 
     // FIFO: pick a size that comfortably absorbs jitter at 60 fps even with
@@ -479,8 +522,7 @@ bool CudaProcessor::initialize (unsigned int glVboHandle, double sampleRate)
         return fail ("cufftSetStream (live plan) failed");
 
     // Register the VBO for zero-copy interop.
-    if (cudaGraphicsGLRegisterBuffer (&impl->cudaVboRes,
-                                      (GLuint) glVboHandle,
+    if (cudaGraphicsGLRegisterBuffer (&impl->cudaVboRes, (GLuint)glVboHandle,
                                       cudaGraphicsMapFlagsWriteDiscard) != cudaSuccess)
         return fail ("cudaGraphicsGLRegisterBuffer failed");
 
@@ -490,7 +532,7 @@ bool CudaProcessor::initialize (unsigned int glVboHandle, double sampleRate)
 }
 
 // -----------------------------------------------------------------------------
-void CudaProcessor::shutdown()
+void CudaProcessor::shutdown ()
 {
     // ---- Defensive impl check (MUST stay at the very top of this function).
     //
@@ -515,16 +557,29 @@ void CudaProcessor::shutdown()
     }
 
     // Drain the stream before destroying anything it might be touching.
-    if (impl->stream) cudaStreamSynchronize (impl->stream);
+    if (impl->stream)
+        cudaStreamSynchronize (impl->stream);
 
-    impl->unregisterVbo();
+    impl->unregisterVbo ();
 
-    if (impl->liveFftPlan)   { cufftDestroy (impl->liveFftPlan);   impl->liveFftPlan   = 0; }
-    impl->freeStaticBuffers();
-    impl->freeLiveBuffers();
+    if (impl->liveFftPlan)
+    {
+        cufftDestroy (impl->liveFftPlan);
+        impl->liveFftPlan = 0;
+    }
+    impl->freeStaticBuffers ();
+    impl->freeLiveBuffers ();
 
-    if (impl->hStagingPinned) { cudaFreeHost (impl->hStagingPinned); impl->hStagingPinned = nullptr; }
-    if (impl->stream)         { cudaStreamDestroy (impl->stream);    impl->stream        = nullptr; }
+    if (impl->hStagingPinned)
+    {
+        cudaFreeHost (impl->hStagingPinned);
+        impl->hStagingPinned = nullptr;
+    }
+    if (impl->stream)
+    {
+        cudaStreamDestroy (impl->stream);
+        impl->stream = nullptr;
+    }
 
     delete impl;
     impl = nullptr;
@@ -537,19 +592,20 @@ void CudaProcessor::shutdown()
 int CudaProcessor::pushAudioBlock (const float* monoSamples, int numSamples) noexcept
 {
     // Hot path: audio thread. Must remain allocation- and lock-free.
-    if (! initialized || impl == nullptr || monoSamples == nullptr || numSamples <= 0)
+    if (!initialized || impl == nullptr || monoSamples == nullptr || numSamples <= 0)
         return 0;
     return impl->fifo.push (monoSamples, numSamples);
 }
 
 // -----------------------------------------------------------------------------
-int CudaProcessor::renderLiveFrame()
+int CudaProcessor::renderLiveFrame ()
 {
-    if (! initialized || impl == nullptr) return currentFrameIndex.load();
+    if (!initialized || impl == nullptr)
+        return currentFrameIndex.load ();
 
     // Need at least HOP_SIZE new samples to make a new spectrogram row.
-    if (impl->fifo.used() < HOP_SIZE)
-        return currentFrameIndex.load();
+    if (impl->fifo.used () < HOP_SIZE)
+        return currentFrameIndex.load ();
 
     // Pop HOP_SIZE samples from the FIFO into pinned host memory, then ship
     // to the device asynchronously on our stream.
@@ -557,28 +613,23 @@ int CudaProcessor::renderLiveFrame()
     if (popped < HOP_SIZE)
     {
         // Spurious: another consumer? Shouldn't happen with SPSC contract.
-        return currentFrameIndex.load();
+        return currentFrameIndex.load ();
     }
 
     // Upload to a temporary device staging area inside the ring. Simpler
     // approach: use cudaMemcpyAsync directly into the ring, splitting at
     // the wrap if necessary.
     int ringSize = PCM_RING_SIZE;
-    int w        = impl->pcmWriteIdx;
+    int w = impl->pcmWriteIdx;
     int firstChunk = std::min (HOP_SIZE, ringSize - w);
     int secondChunk = HOP_SIZE - firstChunk;
 
-    CUDA_SOFT (cudaMemcpyAsync (impl->dPcmRing + w,
-                                impl->hStagingPinned,
-                                sizeof (float) * firstChunk,
-                                cudaMemcpyHostToDevice,
-                                impl->stream));
+    CUDA_SOFT (cudaMemcpyAsync (impl->dPcmRing + w, impl->hStagingPinned,
+                                sizeof (float) * firstChunk, cudaMemcpyHostToDevice, impl->stream));
     if (secondChunk > 0)
     {
-        CUDA_SOFT (cudaMemcpyAsync (impl->dPcmRing,
-                                    impl->hStagingPinned + firstChunk,
-                                    sizeof (float) * secondChunk,
-                                    cudaMemcpyHostToDevice,
+        CUDA_SOFT (cudaMemcpyAsync (impl->dPcmRing, impl->hStagingPinned + firstChunk,
+                                    sizeof (float) * secondChunk, cudaMemcpyHostToDevice,
                                     impl->stream));
     }
 
@@ -586,19 +637,19 @@ int CudaProcessor::renderLiveFrame()
 
     // -- Map the VBO for CUDA write ------------------------------------------
     CUDA_SOFT (cudaGraphicsMapResources (1, &impl->cudaVboRes, impl->stream));
-    float*  dVbo     = nullptr;
-    size_t  vboBytes = 0;
-    CUDA_SOFT (cudaGraphicsResourceGetMappedPointer ((void**) &dVbo, &vboBytes, impl->cudaVboRes));
+    float* dVbo = nullptr;
+    size_t vboBytes = 0;
+    CUDA_SOFT (cudaGraphicsResourceGetMappedPointer ((void**)&dVbo, &vboBytes, impl->cudaVboRes));
 
     if (dVbo != nullptr)
     {
         // 1. Hann window
         {
-            int  threads = 256;
-            int  blocks  = (FFT_SIZE + threads - 1) / threads;
-            applyHannWindowFromRing<<<blocks, threads, 0, impl->stream>>>
-                (impl->dPcmRing, impl->pcmWriteIdx, ringSize,
-                 impl->dHannLUT, impl->dWindowed, FFT_SIZE);
+            int threads = 256;
+            int blocks = (FFT_SIZE + threads - 1) / threads;
+            applyHannWindowFromRing<<<blocks, threads, 0, impl->stream>>> (
+                impl->dPcmRing, impl->pcmWriteIdx, ringSize, impl->dHannLUT, impl->dWindowed,
+                FFT_SIZE);
         }
 
         // 2. cuFFT R2C (soft check: must not skip the VBO unmap below on error)
@@ -607,13 +658,11 @@ int CudaProcessor::renderLiveFrame()
         // 3. Magnitude / log-freq / dB -> mapped VBO row.
         int rowSlot = impl->liveRowSlot;
         {
-            int  threads = 256;
-            int  blocks  = (NUM_OUTPUT_BINS + threads - 1) / threads;
-            spectrumToVboRowLive<<<blocks, threads, 0, impl->stream>>>
-                (impl->dSpectrum, FFT_SIZE,
-                 (float) impl->sampleRate, dVbo, rowSlot,
-                 NUM_OUTPUT_BINS,
-                 MIN_FREQ_HZ, MAX_FREQ_HZ, MIN_DB, MAX_DB);
+            int threads = 256;
+            int blocks = (NUM_OUTPUT_BINS + threads - 1) / threads;
+            spectrumToVboRowLive<<<blocks, threads, 0, impl->stream>>> (
+                impl->dSpectrum, FFT_SIZE, (float)impl->sampleRate, dVbo, rowSlot, NUM_OUTPUT_BINS,
+                MIN_FREQ_HZ, MAX_FREQ_HZ, MIN_DB, MAX_DB);
         }
 
         impl->liveRowSlot = (impl->liveRowSlot + 1) % NUM_HISTORY_ROWS;
@@ -636,14 +685,14 @@ int CudaProcessor::renderLiveFrame()
 // -----------------------------------------------------------------------------
 bool CudaProcessor::rebindVbo (unsigned int glVboHandle, int numRows)
 {
-    if (impl == nullptr) return false;
+    if (impl == nullptr)
+        return false;
 
     // Drain to avoid unregistering a resource that has in-flight work.
     cudaStreamSynchronize (impl->stream);
-    impl->unregisterVbo();
+    impl->unregisterVbo ();
 
-    CUDA_CHECK (cudaGraphicsGLRegisterBuffer (&impl->cudaVboRes,
-                                              (GLuint) glVboHandle,
+    CUDA_CHECK (cudaGraphicsGLRegisterBuffer (&impl->cudaVboRes, (GLuint)glVboHandle,
                                               cudaGraphicsMapFlagsWriteDiscard));
     impl->registeredVbo = glVboHandle;
     staticNumRows = numRows;
@@ -651,57 +700,52 @@ bool CudaProcessor::rebindVbo (unsigned int glVboHandle, int numRows)
 }
 
 // -----------------------------------------------------------------------------
-bool CudaProcessor::processStaticFile (const float* pcmHost,
-                                       std::size_t  totalSamples,
-                                       double       sampleRate,
-                                       int&         outNumRows)
+bool CudaProcessor::processStaticFile (const float* pcmHost, std::size_t totalSamples,
+                                       double sampleRate, int& outNumRows)
 {
     outNumRows = 0;
-    if (! initialized || impl == nullptr || pcmHost == nullptr || totalSamples < (std::size_t) FFT_SIZE)
+    if (!initialized || impl == nullptr || pcmHost == nullptr ||
+        totalSamples < (std::size_t)FFT_SIZE)
         return false;
 
     impl->sampleRate = sampleRate;
 
-    int numHops = (int) ((totalSamples - FFT_SIZE) / HOP_SIZE) + 1;
-    if (numHops <= 0) return false;
+    int numHops = (int)((totalSamples - FFT_SIZE) / HOP_SIZE) + 1;
+    if (numHops <= 0)
+        return false;
 
     // -- Free any previous static allocation ----------------------------------
-    impl->freeStaticBuffers();
+    impl->freeStaticBuffers ();
 
     // -- Upload full PCM to VRAM ---------------------------------------------
     CUDA_CHECK (cudaMalloc (&impl->dStaticPcm, sizeof (float) * totalSamples));
-    CUDA_CHECK (cudaMemcpyAsync (impl->dStaticPcm, pcmHost,
-                                 sizeof (float) * totalSamples,
+    CUDA_CHECK (cudaMemcpyAsync (impl->dStaticPcm, pcmHost, sizeof (float) * totalSamples,
                                  cudaMemcpyHostToDevice, impl->stream));
 
     // -- Allocate batched scratch for windowed time-domain frames ------------
-    std::size_t windowBytes = sizeof (float) * (std::size_t) numHops * FFT_SIZE;
+    std::size_t windowBytes = sizeof (float) * (std::size_t)numHops * FFT_SIZE;
     CUDA_CHECK (cudaMalloc (&impl->dStaticWindow, windowBytes));
 
     // -- Allocate batched output complex spectra -----------------------------
-    std::size_t spectraBytes = sizeof (cufftComplex)
-                             * (std::size_t) numHops * (FFT_SIZE / 2 + 1);
+    std::size_t spectraBytes = sizeof (cufftComplex) * (std::size_t)numHops * (FFT_SIZE / 2 + 1);
     CUDA_CHECK (cudaMalloc (&impl->dStaticSpectra, spectraBytes));
 
     // -- Window all hops in one launch ---------------------------------------
     {
         dim3 threads (256, 1);
-        dim3 blocks ((FFT_SIZE + threads.x - 1) / threads.x,
-                     (unsigned int) numHops);
-        applyHannWindowBatched<<<blocks, threads, 0, impl->stream>>>
-            (impl->dStaticPcm, totalSamples, impl->dHannLUT,
-             impl->dStaticWindow, FFT_SIZE, HOP_SIZE);
+        dim3 blocks ((FFT_SIZE + threads.x - 1) / threads.x, (unsigned int)numHops);
+        applyHannWindowBatched<<<blocks, threads, 0, impl->stream>>> (
+            impl->dStaticPcm, totalSamples, impl->dHannLUT, impl->dStaticWindow, FFT_SIZE,
+            HOP_SIZE);
     }
 
     // -- Build the batched cuFFT plan ----------------------------------------
-    int n    [1] = { FFT_SIZE };
-    int inEmb[1] = { FFT_SIZE };
-    int otEmb[1] = { FFT_SIZE / 2 + 1 };
+    int n[1] = {FFT_SIZE};
+    int inEmb[1] = {FFT_SIZE};
+    int otEmb[1] = {FFT_SIZE / 2 + 1};
     CUFFT_CHECK (cufftPlanMany (&impl->batchPlan,
-                                /*rank*/ 1, n,
-                                inEmb, /*istride*/ 1, /*idist*/ FFT_SIZE,
-                                otEmb, /*ostride*/ 1, /*odist*/ FFT_SIZE / 2 + 1,
-                                CUFFT_R2C, numHops));
+                                /*rank*/ 1, n, inEmb, /*istride*/ 1, /*idist*/ FFT_SIZE, otEmb,
+                                /*ostride*/ 1, /*odist*/ FFT_SIZE / 2 + 1, CUFFT_R2C, numHops));
     impl->batchPlanValid = true;
     CUFFT_CHECK (cufftSetStream (impl->batchPlan, impl->stream));
 
@@ -712,9 +756,9 @@ bool CudaProcessor::processStaticFile (const float* pcmHost,
     CUDA_CHECK (cudaGraphicsMapResources (1, &impl->cudaVboRes, impl->stream));
     float* dVbo = nullptr;
     size_t vboBytes = 0;
-    CUDA_CHECK (cudaGraphicsResourceGetMappedPointer ((void**) &dVbo, &vboBytes, impl->cudaVboRes));
+    CUDA_CHECK (cudaGraphicsResourceGetMappedPointer ((void**)&dVbo, &vboBytes, impl->cudaVboRes));
 
-    std::size_t requiredBytes = sizeof (float) * (std::size_t) numHops * NUM_OUTPUT_BINS;
+    std::size_t requiredBytes = sizeof (float) * (std::size_t)numHops * NUM_OUTPUT_BINS;
     if (vboBytes < requiredBytes)
     {
         std::fprintf (stderr,
@@ -727,13 +771,10 @@ bool CudaProcessor::processStaticFile (const float* pcmHost,
 
     {
         dim3 threads (256, 1);
-        dim3 blocks ((NUM_OUTPUT_BINS + threads.x - 1) / threads.x,
-                     (unsigned int) numHops);
-        spectrumToVboBatched<<<blocks, threads, 0, impl->stream>>>
-            (impl->dStaticSpectra, FFT_SIZE,
-             (float) sampleRate, dVbo,
-             NUM_OUTPUT_BINS, numHops,
-             MIN_FREQ_HZ, MAX_FREQ_HZ, MIN_DB, MAX_DB);
+        dim3 blocks ((NUM_OUTPUT_BINS + threads.x - 1) / threads.x, (unsigned int)numHops);
+        spectrumToVboBatched<<<blocks, threads, 0, impl->stream>>> (
+            impl->dStaticSpectra, FFT_SIZE, (float)sampleRate, dVbo, NUM_OUTPUT_BINS, numHops,
+            MIN_FREQ_HZ, MAX_FREQ_HZ, MIN_DB, MAX_DB);
     }
 
     CUDA_CHECK (cudaGraphicsUnmapResources (1, &impl->cudaVboRes, impl->stream));
@@ -742,6 +783,6 @@ bool CudaProcessor::processStaticFile (const float* pcmHost,
     CUDA_CHECK (cudaStreamSynchronize (impl->stream));
 
     staticNumRows = numHops;
-    outNumRows    = numHops;
+    outNumRows = numHops;
     return true;
 }

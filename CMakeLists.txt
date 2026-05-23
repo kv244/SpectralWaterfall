@@ -25,8 +25,11 @@ find_package(CUDAToolkit REQUIRED)
 # ---------------------------------------------------------------------------
 add_library(CudaProcessor STATIC CudaProcessor.cu)
 
+set(SPECTRAL_CUDA_ARCH "89" CACHE STRING
+    "CUDA architecture(s) to compile for (e.g. 89 for Ada, 75 for Turing, 86 for Ampere)")
+
 set_target_properties(CudaProcessor PROPERTIES
-    CUDA_ARCHITECTURES         89      # Ada / RTX 4070 Laptop (SM 8.9)
+    CUDA_ARCHITECTURES         ${SPECTRAL_CUDA_ARCH}
     CUDA_SEPARABLE_COMPILATION OFF
     POSITION_INDEPENDENT_CODE  ON      # required when linked into a DLL plugin
 )

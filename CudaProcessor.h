@@ -29,11 +29,11 @@
 
 class CudaProcessor
 {
-public:
+  public:
     // ---- Configuration constants -------------------------------------------
     // These are mirrored on the .cu side; if you change them, change both.
-    static constexpr int  FFT_SIZE          = 2048;   // power of two; cuFFT-friendly
-    static constexpr int  HOP_SIZE          = 512;    // 75 % overlap
+    static constexpr int FFT_SIZE = 2048; // power of two; cuFFT-friendly
+    static constexpr int HOP_SIZE = 512; // 75 % overlap
 
     // !!! NUM_OUTPUT_BINS must remain a power of two (or at minimum a
     //     multiple of 32 for warp width and 64 for half-warp pairs).
@@ -53,23 +53,23 @@ public:
     //     At that point you'd need cudaMallocPitch + a pitched VBO layout
     //     with row strides padded up to the alignment boundary, which the
     //     current interop path is not built for.
-    static constexpr int  NUM_OUTPUT_BINS   = 512;    // X-resolution of waterfall
+    static constexpr int NUM_OUTPUT_BINS = 512; // X-resolution of waterfall
     static_assert ((NUM_OUTPUT_BINS & (NUM_OUTPUT_BINS - 1)) == 0 && NUM_OUTPUT_BINS >= 128,
                    "NUM_OUTPUT_BINS must be a power-of-two >= 128 for coalesced VBO writes");
-    static constexpr int  NUM_HISTORY_ROWS  = 256;    // Z-resolution (live mode)
-    static constexpr float MIN_FREQ_HZ      = 20.0f;
-    static constexpr float MAX_FREQ_HZ      = 20000.0f;
-    static constexpr float MIN_DB           = -90.0f;
-    static constexpr float MAX_DB           = 0.0f;
+    static constexpr int NUM_HISTORY_ROWS = 256; // Z-resolution (live mode)
+    static constexpr float MIN_FREQ_HZ = 20.0f;
+    static constexpr float MAX_FREQ_HZ = 20000.0f;
+    static constexpr float MIN_DB = -90.0f;
+    static constexpr float MAX_DB = 0.0f;
 
     // PCM ring on the device: enough headroom for FFT_SIZE + drift.
-    static constexpr int  PCM_RING_SIZE     = FFT_SIZE * 4;
+    static constexpr int PCM_RING_SIZE = FFT_SIZE * 4;
 
-    CudaProcessor();
-    ~CudaProcessor();
+    CudaProcessor ();
+    ~CudaProcessor ();
 
-    CudaProcessor(const CudaProcessor&)            = delete;
-    CudaProcessor& operator=(const CudaProcessor&) = delete;
+    CudaProcessor (const CudaProcessor&) = delete;
+    CudaProcessor& operator= (const CudaProcessor&) = delete;
 
     // -----------------------------------------------------------------------
     //  Lifecycle
@@ -87,7 +87,7 @@ public:
     bool initialize (unsigned int glVboHandle, double sampleRate);
 
     /** Tear down all CUDA state and unregister the VBO. Idempotent. */
-    void shutdown();
+    void shutdown ();
 
     // -----------------------------------------------------------------------
     //  Live-stream path
@@ -112,7 +112,7 @@ public:
                  frame was produced this call (insufficient FIFO data), the
                  previous index is returned unchanged.
     */
-    int renderLiveFrame();
+    int renderLiveFrame ();
 
     // -----------------------------------------------------------------------
     //  Static-file path
@@ -135,10 +135,8 @@ public:
                                 of rows now in the static VBO).
         @returns true on success.
     */
-    bool processStaticFile (const float* pcmHost,
-                            std::size_t  totalSamples,
-                            double       sampleRate,
-                            int&         outNumRows);
+    bool processStaticFile (const float* pcmHost, std::size_t totalSamples, double sampleRate,
+                            int& outNumRows);
 
     /** Re-register the OpenGL VBO with CUDA. Use after the component
         rebuilds its GL buffer (mode change, resize, etc.).
@@ -151,21 +149,24 @@ public:
     // -----------------------------------------------------------------------
     //  Accessors
     // -----------------------------------------------------------------------
-    int  getCurrentFrameIndex() const noexcept { return currentFrameIndex.load (std::memory_order_acquire); }
-    int  getStaticNumRows()     const noexcept { return staticNumRows; }
-    bool isInitialized()        const noexcept { return initialized; }
+    int getCurrentFrameIndex () const noexcept
+    {
+        return currentFrameIndex.load (std::memory_order_acquire);
+    }
+    int getStaticNumRows () const noexcept { return staticNumRows; }
+    bool isInitialized () const noexcept { return initialized; }
 
     /** Query CUDA runtime and driver versions (e.g. 13010 = 13.1).
         Safe to call before initialize(). Returns 0 on failure. */
     static void getCudaVersions (int& runtimeVersion, int& driverVersion) noexcept;
 
-private:
+  private:
     // Opaque Impl. Defined in CudaProcessor.cu so this header pulls
     // zero CUDA / cuFFT / cudaGL types.
     struct Impl;
     Impl* impl = nullptr;
 
-    std::atomic<int> currentFrameIndex { 0 };
-    int              staticNumRows     = 0;
-    bool             initialized       = false;
+    std::atomic<int> currentFrameIndex{0};
+    int staticNumRows = 0;
+    bool initialized = false;
 };

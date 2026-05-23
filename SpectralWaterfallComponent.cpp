@@ -4,7 +4,7 @@
 
 #include "SpectralWaterfallComponent.h"
 
-using namespace juce::gl;   // brings glXxx symbols into the file
+using namespace juce::gl; // brings glXxx symbols into the file
 
 // =============================================================================
 //  GLSL SHADERS (Core Profile 3.30)
@@ -131,7 +131,7 @@ void main()
 // =============================================================================
 //  Construction / destruction
 // =============================================================================
-SpectralWaterfallComponent::SpectralWaterfallComponent()
+SpectralWaterfallComponent::SpectralWaterfallComponent ()
 {
     // Attach the GL renderer.
     openGLContext.setRenderer (this);
@@ -148,16 +148,16 @@ SpectralWaterfallComponent::SpectralWaterfallComponent()
 
     openGLContext.attachTo (*this);
 
-    audioFormatManager.registerBasicFormats(); // WAV, AIFF, FLAC, MP3 (if built)
+    audioFormatManager.registerBasicFormats (); // WAV, AIFF, FLAC, MP3 (if built)
     setOpaque (true);
     setSize (960, 540);
 }
 
-SpectralWaterfallComponent::~SpectralWaterfallComponent()
+SpectralWaterfallComponent::~SpectralWaterfallComponent ()
 {
     // Detach first: this triggers openGLContextClosing() on the GL thread,
     // where we tear down CUDA and GL resources safely.
-    openGLContext.detach();
+    openGLContext.detach ();
 }
 
 // =============================================================================
@@ -181,12 +181,12 @@ bool SpectralWaterfallComponent::loadStaticFile (const juce::File& file)
     std::unique_ptr<juce::AudioFormatReader> reader (audioFormatManager.createReaderFor (file));
     if (reader == nullptr)
     {
-        DBG ("Failed to open audio file: " << file.getFullPathName());
+        DBG ("Failed to open audio file: " << file.getFullPathName ());
         return false;
     }
 
-    const int  numChans   = static_cast<int> (reader->numChannels);
-    const auto numSamples = static_cast<int>  (reader->lengthInSamples);
+    const int numChans = static_cast<int> (reader->numChannels);
+    const auto numSamples = static_cast<int> (reader->lengthInSamples);
     if (numSamples <= CudaProcessor::FFT_SIZE)
     {
         DBG ("File too short for FFT.");
@@ -198,7 +198,7 @@ bool SpectralWaterfallComponent::loadStaticFile (const juce::File& file)
     reader->read (&tmp, 0, numSamples, 0, true, numChans > 1);
 
     juce::AudioBuffer<float> mono (1, numSamples);
-    mono.clear();
+    mono.clear ();
     auto* m = mono.getWritePointer (0);
     for (int ch = 0; ch < numChans; ++ch)
     {
@@ -215,7 +215,7 @@ bool SpectralWaterfallComponent::loadStaticFile (const juce::File& file)
 
     {
         std::lock_guard<std::mutex> g (staticDataMutex);
-        staticPcmMono   = std::move (mono);
+        staticPcmMono = std::move (mono);
         staticSampleRate = reader->sampleRate;
     }
 
@@ -224,7 +224,7 @@ bool SpectralWaterfallComponent::loadStaticFile (const juce::File& file)
     return true;
 }
 
-void SpectralWaterfallComponent::switchToLiveStream()
+void SpectralWaterfallComponent::switchToLiveStream ()
 {
     mode.store (Mode::LiveStream, std::memory_order_release);
     pendingLiveRebuild.store (true, std::memory_order_release);
@@ -233,7 +233,7 @@ void SpectralWaterfallComponent::switchToLiveStream()
 // =============================================================================
 //  juce::Component
 // =============================================================================
-void SpectralWaterfallComponent::resized()
+void SpectralWaterfallComponent::resized ()
 {
     // Viewport reset is handled in renderOpenGL via getRenderingScale().
 }
@@ -241,24 +241,24 @@ void SpectralWaterfallComponent::resized()
 // =============================================================================
 //  GL context creation
 // =============================================================================
-void SpectralWaterfallComponent::newOpenGLContextCreated()
+void SpectralWaterfallComponent::newOpenGLContextCreated ()
 {
     // Compile / link the shaders.
-    if (! buildShaders())
+    if (!buildShaders ())
     {
         jassertfalse;
         return;
     }
 
     // Build the live-mode geometry by default.
-    if (! buildLiveGeometry())
+    if (!buildLiveGeometry ())
     {
         jassertfalse;
         return;
     }
 
     // Initialise CUDA against the live VBO.
-    if (! cuda.initialize (vboHeights, sampleRate.load()))
+    if (!cuda.initialize (vboHeights, sampleRate.load ()))
     {
         jassertfalse;
         return;
@@ -273,33 +273,33 @@ void SpectralWaterfallComponent::newOpenGLContextCreated()
     glEnable (GL_BLEND);
     glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    startTime = juce::Time::getCurrentTime();
+    startTime = juce::Time::getCurrentTime ();
 }
 
 // =============================================================================
 //  Shaders
 // =============================================================================
-bool SpectralWaterfallComponent::buildShaders()
+bool SpectralWaterfallComponent::buildShaders ()
 {
     auto newShader = std::make_unique<juce::OpenGLShaderProgram> (openGLContext);
 
-    if (! newShader->addVertexShader   (kVertexShaderSrc) ||
-        ! newShader->addFragmentShader (kFragmentShaderSrc) ||
-        ! newShader->link())
+    if (!newShader->addVertexShader (kVertexShaderSrc) ||
+        !newShader->addFragmentShader (kFragmentShaderSrc) || !newShader->link ())
     {
-        DBG ("Shader compile/link failed: " << newShader->getLastError());
+        DBG ("Shader compile/link failed: " << newShader->getLastError ());
         return false;
     }
 
     shader = std::move (newShader);
-    shader->use();
+    shader->use ();
 
-    uMVP                = std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uMVP");
-    uCurrentFrameIndex  = std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uCurrentFrameIndex");
-    uNumFreqBins        = std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uNumFreqBins");
-    uNumRows            = std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uNumRows");
-    uHeightScale        = std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uHeightScale");
-    uTime               = std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uTime");
+    uMVP = std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uMVP");
+    uCurrentFrameIndex =
+        std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uCurrentFrameIndex");
+    uNumFreqBins = std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uNumFreqBins");
+    uNumRows = std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uNumRows");
+    uHeightScale = std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uHeightScale");
+    uTime = std::make_unique<juce::OpenGLShaderProgram::Uniform> (*shader, "uTime");
 
     return true;
 }
@@ -316,29 +316,33 @@ bool SpectralWaterfallComponent::buildShaders()
 // =============================================================================
 namespace
 {
-    void buildGridIndices (std::vector<uint32_t>& indices, int numFreqBins, int numRows)
+void buildGridIndices (std::vector<uint32_t>& indices, int numFreqBins, int numRows)
+{
+    indices.clear ();
+    indices.reserve (static_cast<std::size_t> ((numFreqBins - 1) * (numRows - 1) * 6));
+    for (int r = 0; r < numRows - 1; ++r)
     {
-        indices.clear();
-        indices.reserve (static_cast<std::size_t> ((numFreqBins - 1) * (numRows - 1) * 6));
-        for (int r = 0; r < numRows - 1; ++r)
+        for (int x = 0; x < numFreqBins - 1; ++x)
         {
-            for (int x = 0; x < numFreqBins - 1; ++x)
-            {
-                uint32_t i00 = static_cast<uint32_t> (r       * numFreqBins + x);
-                uint32_t i10 = static_cast<uint32_t> (r       * numFreqBins + x + 1);
-                uint32_t i01 = static_cast<uint32_t> ((r + 1) * numFreqBins + x);
-                uint32_t i11 = static_cast<uint32_t> ((r + 1) * numFreqBins + x + 1);
-                // Two CCW triangles.
-                indices.push_back (i00); indices.push_back (i01); indices.push_back (i10);
-                indices.push_back (i10); indices.push_back (i01); indices.push_back (i11);
-            }
+            uint32_t i00 = static_cast<uint32_t> (r * numFreqBins + x);
+            uint32_t i10 = static_cast<uint32_t> (r * numFreqBins + x + 1);
+            uint32_t i01 = static_cast<uint32_t> ((r + 1) * numFreqBins + x);
+            uint32_t i11 = static_cast<uint32_t> ((r + 1) * numFreqBins + x + 1);
+            // Two CCW triangles.
+            indices.push_back (i00);
+            indices.push_back (i01);
+            indices.push_back (i10);
+            indices.push_back (i10);
+            indices.push_back (i01);
+            indices.push_back (i11);
         }
     }
+}
 } // namespace
 
-bool SpectralWaterfallComponent::buildLiveGeometry()
+bool SpectralWaterfallComponent::buildLiveGeometry ()
 {
-    releaseGeometry();
+    releaseGeometry ();
 
     const int rows = CudaProcessor::NUM_HISTORY_ROWS;
     const int cols = CudaProcessor::NUM_OUTPUT_BINS;
@@ -349,21 +353,20 @@ bool SpectralWaterfallComponent::buildLiveGeometry()
 
     glGenBuffers (1, &vboHeights);
     glBindBuffer (GL_ARRAY_BUFFER, vboHeights);
-    glBufferData (GL_ARRAY_BUFFER,
-                  static_cast<GLsizeiptr> (vertCount * sizeof (float)),
-                  nullptr, GL_DYNAMIC_DRAW);
+    glBufferData (GL_ARRAY_BUFFER, static_cast<GLsizeiptr> (vertCount * sizeof (float)), nullptr,
+                  GL_DYNAMIC_DRAW);
     glVertexAttribPointer (0, 1, GL_FLOAT, GL_FALSE, sizeof (float), nullptr);
     glEnableVertexAttribArray (0);
 
     std::vector<uint32_t> indices;
     buildGridIndices (indices, cols, rows);
-    indexCount = static_cast<int> (indices.size());
+    indexCount = static_cast<int> (indices.size ());
 
     glGenBuffers (1, &ebo);
     glBindBuffer (GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData (GL_ELEMENT_ARRAY_BUFFER,
-                  static_cast<GLsizeiptr> (indices.size() * sizeof (uint32_t)),
-                  indices.data(), GL_STATIC_DRAW);
+                  static_cast<GLsizeiptr> (indices.size () * sizeof (uint32_t)), indices.data (),
+                  GL_STATIC_DRAW);
 
     glBindVertexArray (0);
     geometryNumRows = rows;
@@ -372,7 +375,7 @@ bool SpectralWaterfallComponent::buildLiveGeometry()
 
 bool SpectralWaterfallComponent::buildStaticGeometry (int numRows)
 {
-    releaseGeometry();
+    releaseGeometry ();
 
     const int cols = CudaProcessor::NUM_OUTPUT_BINS;
     const std::size_t vertCount = static_cast<std::size_t> (numRows) * cols;
@@ -382,21 +385,20 @@ bool SpectralWaterfallComponent::buildStaticGeometry (int numRows)
 
     glGenBuffers (1, &vboHeights);
     glBindBuffer (GL_ARRAY_BUFFER, vboHeights);
-    glBufferData (GL_ARRAY_BUFFER,
-                  static_cast<GLsizeiptr> (vertCount * sizeof (float)),
-                  nullptr, GL_STATIC_DRAW);
+    glBufferData (GL_ARRAY_BUFFER, static_cast<GLsizeiptr> (vertCount * sizeof (float)), nullptr,
+                  GL_STATIC_DRAW);
     glVertexAttribPointer (0, 1, GL_FLOAT, GL_FALSE, sizeof (float), nullptr);
     glEnableVertexAttribArray (0);
 
     std::vector<uint32_t> indices;
     buildGridIndices (indices, cols, numRows);
-    indexCount = static_cast<int> (indices.size());
+    indexCount = static_cast<int> (indices.size ());
 
     glGenBuffers (1, &ebo);
     glBindBuffer (GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData (GL_ELEMENT_ARRAY_BUFFER,
-                  static_cast<GLsizeiptr> (indices.size() * sizeof (uint32_t)),
-                  indices.data(), GL_STATIC_DRAW);
+                  static_cast<GLsizeiptr> (indices.size () * sizeof (uint32_t)), indices.data (),
+                  GL_STATIC_DRAW);
 
     glBindVertexArray (0);
     geometryNumRows = numRows;
@@ -405,11 +407,23 @@ bool SpectralWaterfallComponent::buildStaticGeometry (int numRows)
     return cuda.rebindVbo (vboHeights, numRows);
 }
 
-void SpectralWaterfallComponent::releaseGeometry()
+void SpectralWaterfallComponent::releaseGeometry ()
 {
-    if (vao)        { glDeleteVertexArrays (1, &vao);        vao        = 0; }
-    if (vboHeights) { glDeleteBuffers      (1, &vboHeights); vboHeights = 0; }
-    if (ebo)        { glDeleteBuffers      (1, &ebo);        ebo        = 0; }
+    if (vao)
+    {
+        glDeleteVertexArrays (1, &vao);
+        vao = 0;
+    }
+    if (vboHeights)
+    {
+        glDeleteBuffers (1, &vboHeights);
+        vboHeights = 0;
+    }
+    if (ebo)
+    {
+        glDeleteBuffers (1, &ebo);
+        ebo = 0;
+    }
     indexCount = 0;
     geometryNumRows = 0;
 }
@@ -417,79 +431,94 @@ void SpectralWaterfallComponent::releaseGeometry()
 // =============================================================================
 //  Camera
 // =============================================================================
-void SpectralWaterfallComponent::setCameraUniforms()
+void SpectralWaterfallComponent::setCameraUniforms ()
 {
-    auto bounds   = getLocalBounds();
-    auto desktopScale = (float) openGLContext.getRenderingScale();
-    const int w = juce::jmax (1, (int) (bounds.getWidth()  * desktopScale));
-    const int h = juce::jmax (1, (int) (bounds.getHeight() * desktopScale));
+    auto bounds = getLocalBounds ();
+    auto desktopScale = (float)openGLContext.getRenderingScale ();
+    const int w = juce::jmax (1, (int)(bounds.getWidth () * desktopScale));
+    const int h = juce::jmax (1, (int)(bounds.getHeight () * desktopScale));
     glViewport (0, 0, w, h);
 
-    const float aspect = (float) w / (float) h;
+    const float aspect = (float)w / (float)h;
 
     // Slow orbit so the user can see the 3D structure.
-    const float t = (float) (juce::Time::getCurrentTime() - startTime).inSeconds();
+    const float t = (float)(juce::Time::getCurrentTime () - startTime).inSeconds ();
     cameraOrbit = 0.15f * t;
 
     const float camRadius = 6.0f;
     const float camHeight = 3.2f;
-    const float camX      = std::sin (cameraOrbit) * camRadius;
-    const float camZ      = std::cos (cameraOrbit) * camRadius;
+    const float camX = std::sin (cameraOrbit) * camRadius;
+    const float camZ = std::cos (cameraOrbit) * camRadius;
 
-    juce::Vector3D<float> eye    (camX, camHeight, camZ);
+    juce::Vector3D<float> eye (camX, camHeight, camZ);
     juce::Vector3D<float> target (0.0f, 0.4f, 0.0f);
-    juce::Vector3D<float> up     (0.0f, 1.0f, 0.0f);
+    juce::Vector3D<float> up (0.0f, 1.0f, 0.0f);
 
     // Build view (lookAt) matrix.
-    auto lookAt = [] (juce::Vector3D<float> e,
-                      juce::Vector3D<float> c,
+    auto lookAt = [] (juce::Vector3D<float> e, juce::Vector3D<float> c,
                       juce::Vector3D<float> u) -> juce::Matrix3D<float>
     {
-        auto f = (c - e); f /= f.length();
-        auto s = f ^ u;   s /= s.length();
+        auto f = (c - e);
+        f /= f.length ();
+        auto s = f ^ u;
+        s /= s.length ();
         auto v = s ^ f;
 
         juce::Matrix3D<float> m;
         // Column-major mat4
         float* d = m.mat;
-        d[ 0] =  s.x;  d[ 1] =  v.x;  d[ 2] = -f.x;  d[ 3] = 0.0f;
-        d[ 4] =  s.y;  d[ 5] =  v.y;  d[ 6] = -f.y;  d[ 7] = 0.0f;
-        d[ 8] =  s.z;  d[ 9] =  v.z;  d[10] = -f.z;  d[11] = 0.0f;
+        d[0] = s.x;
+        d[1] = v.x;
+        d[2] = -f.x;
+        d[3] = 0.0f;
+        d[4] = s.y;
+        d[5] = v.y;
+        d[6] = -f.y;
+        d[7] = 0.0f;
+        d[8] = s.z;
+        d[9] = v.z;
+        d[10] = -f.z;
+        d[11] = 0.0f;
         d[12] = -(s.x * e.x + s.y * e.y + s.z * e.z);
         d[13] = -(v.x * e.x + v.y * e.y + v.z * e.z);
-        d[14] =  (f.x * e.x + f.y * e.y + f.z * e.z);
+        d[14] = (f.x * e.x + f.y * e.y + f.z * e.z);
         d[15] = 1.0f;
         return m;
     };
 
     auto view = lookAt (eye, target, up);
 
-    auto proj = juce::Matrix3D<float>::fromFrustum (-aspect * 0.05f, aspect * 0.05f,
-                                                    -0.05f, 0.05f,
-                                                     0.1f, 100.0f);
+    auto proj = juce::Matrix3D<float>::fromFrustum (-aspect * 0.05f, aspect * 0.05f, -0.05f, 0.05f,
+                                                    0.1f, 100.0f);
 
     // GLSL is column-vector: gl_Position = uMVP * pos. So uMVP must be
     // projection * view (applies view first, then projection).
     auto mvp = proj * view;
 
-    if (uMVP != nullptr)               uMVP->setMatrix4 (mvp.mat, 1, false);
-    if (uNumFreqBins != nullptr)       uNumFreqBins->set ((GLint) CudaProcessor::NUM_OUTPUT_BINS);
-    if (uNumRows != nullptr)           uNumRows->set ((GLint) geometryNumRows);
-    if (uHeightScale != nullptr)       uHeightScale->set (1.4f);
-    if (uTime != nullptr)              uTime->set (t);
+    if (uMVP != nullptr)
+        uMVP->setMatrix4 (mvp.mat, 1, false);
+    if (uNumFreqBins != nullptr)
+        uNumFreqBins->set ((GLint)CudaProcessor::NUM_OUTPUT_BINS);
+    if (uNumRows != nullptr)
+        uNumRows->set ((GLint)geometryNumRows);
+    if (uHeightScale != nullptr)
+        uHeightScale->set (1.4f);
+    if (uTime != nullptr)
+        uTime->set (t);
 }
 
 // =============================================================================
 //  renderOpenGL — the per-frame driver
 // =============================================================================
-void SpectralWaterfallComponent::renderOpenGL()
+void SpectralWaterfallComponent::renderOpenGL ()
 {
-    if (shader == nullptr) return;
+    if (shader == nullptr)
+        return;
 
     // ---- Handle pending mode transitions (GL thread, context current) ------
     if (pendingLiveRebuild.exchange (false, std::memory_order_acq_rel))
     {
-        buildLiveGeometry();
+        buildLiveGeometry ();
         // The cuda processor's currently registered VBO is whatever the last
         // mode set up. Rebind to the new live VBO.
         cuda.rebindVbo (vboHeights, CudaProcessor::NUM_HISTORY_ROWS);
@@ -501,23 +530,21 @@ void SpectralWaterfallComponent::renderOpenGL()
         double sr = 44100.0;
         {
             std::lock_guard<std::mutex> g (staticDataMutex);
-            localCopy = std::move (staticPcmMono);  // move: no deep copy under the lock
-            sr        = staticSampleRate;
+            localCopy = std::move (staticPcmMono); // move: no deep copy under the lock
+            sr = staticSampleRate;
         }
 
-        if (localCopy.getNumSamples() > CudaProcessor::FFT_SIZE)
+        if (localCopy.getNumSamples () > CudaProcessor::FFT_SIZE)
         {
-            const int totalSamples = localCopy.getNumSamples();
-            const int numHops      = (totalSamples - CudaProcessor::FFT_SIZE)
-                                   / CudaProcessor::HOP_SIZE + 1;
+            const int totalSamples = localCopy.getNumSamples ();
+            const int numHops =
+                (totalSamples - CudaProcessor::FFT_SIZE) / CudaProcessor::HOP_SIZE + 1;
 
-            buildStaticGeometry (numHops);  // resizes VBO + re-registers with CUDA
+            buildStaticGeometry (numHops); // resizes VBO + re-registers with CUDA
 
             int outRows = 0;
-            if (! cuda.processStaticFile (localCopy.getReadPointer (0),
-                                          static_cast<std::size_t> (totalSamples),
-                                          sr,
-                                          outRows))
+            if (!cuda.processStaticFile (localCopy.getReadPointer (0),
+                                         static_cast<std::size_t> (totalSamples), sr, outRows))
             {
                 DBG ("processStaticFile failed — VBO may be empty.");
             }
@@ -526,11 +553,11 @@ void SpectralWaterfallComponent::renderOpenGL()
     }
 
     // ---- Clear --------------------------------------------------------------
-    glClearColor (0.01f, 0.015f, 0.04f, 1.0f);    // near-black navy
+    glClearColor (0.01f, 0.015f, 0.04f, 1.0f); // near-black navy
     glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    shader->use();
-    setCameraUniforms();
+    shader->use ();
+    setCameraUniforms ();
 
     // ---- Drive CUDA --------------------------------------------------------
     //
@@ -544,18 +571,18 @@ void SpectralWaterfallComponent::renderOpenGL()
     //  natural "time flows toward you" reading along -Z.
     int frameIndex = 0;
     if (mode.load (std::memory_order_acquire) == Mode::LiveStream)
-        frameIndex = cuda.renderLiveFrame();
+        frameIndex = cuda.renderLiveFrame ();
     else if (geometryNumRows > 0)
         frameIndex = geometryNumRows - 1;
 
     if (uCurrentFrameIndex != nullptr)
-        uCurrentFrameIndex->set ((GLint) frameIndex);
+        uCurrentFrameIndex->set ((GLint)frameIndex);
 
     // ---- Draw --------------------------------------------------------------
     if (vao != 0 && indexCount > 0)
     {
         glBindVertexArray (vao);
-        glDrawElements (GL_TRIANGLES, (GLsizei) indexCount, GL_UNSIGNED_INT, nullptr);
+        glDrawElements (GL_TRIANGLES, (GLsizei)indexCount, GL_UNSIGNED_INT, nullptr);
         glBindVertexArray (0);
     }
 }
@@ -563,19 +590,19 @@ void SpectralWaterfallComponent::renderOpenGL()
 // =============================================================================
 //  GL context tear-down
 // =============================================================================
-void SpectralWaterfallComponent::openGLContextClosing()
+void SpectralWaterfallComponent::openGLContextClosing ()
 {
     // Order matters: tear down CUDA first (it still holds a reference to the
     // GL VBO via cudaGraphicsResource).
-    cuda.shutdown();
+    cuda.shutdown ();
 
-    releaseGeometry();
-    shader.reset();
+    releaseGeometry ();
+    shader.reset ();
 
-    uMVP.reset();
-    uCurrentFrameIndex.reset();
-    uNumFreqBins.reset();
-    uNumRows.reset();
-    uHeightScale.reset();
-    uTime.reset();
+    uMVP.reset ();
+    uCurrentFrameIndex.reset ();
+    uNumFreqBins.reset ();
+    uNumRows.reset ();
+    uHeightScale.reset ();
+    uTime.reset ();
 }

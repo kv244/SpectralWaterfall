@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Lint: verify every source file is clang-format clean.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: clang-format check
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format-16
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y clang-format-16
+          sudo update-alternatives --install /usr/bin/clang-format clang-format \
+            /usr/bin/clang-format-16 100
+
+      - name: Run clang-format --dry-run
+        run: |
+          files=$(find . -name '*.cpp' -o -name '*.cu' -o -name '*.h' | grep -v build/)
+          clang-format --style=file --dry-run --Werror $files
+
+  # ---------------------------------------------------------------------------
+  # Build: configure + compile on Linux with CUDA 12.
+  # Targets sm_75 (Turing) — available in every CUDA 12 release and compatible
+  # with the cudaGraphicsGLRegisterBuffer / cuFFT APIs used here.
+  # Override with: cmake -DSPECTRAL_CUDA_ARCH=89
+  # ---------------------------------------------------------------------------
+  build:
+    name: CMake build (Linux / CUDA 12)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CUDA 12.4
+        uses: jimver/cuda-toolkit@v0.2.16
+        with:
+          cuda: '12.4.0'
+          method: network
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            cmake ninja-build \
+            libfreetype6-dev libfontconfig1-dev \
+            libx11-dev libxext-dev libxrender-dev \
+            libxcursor-dev libxinerama-dev libxrandr-dev \
+            libasound2-dev \
+            libglu1-mesa-dev mesa-common-dev libgl1-mesa-dev \
+            libwebkit2gtk-4.0-dev
+
+      - name: Cache JUCE
+        id: cache-juce
+        uses: actions/cache@v4
+        with:
+          path: JUCE
+          key: juce-8.0.7
+
+      - name: Clone JUCE 8.0.7
+        if: steps.cache-juce.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch 8.0.7 \
+            https://github.com/juce-framework/JUCE.git JUCE
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DJUCE_PATH="$GITHUB_WORKSPACE/JUCE" \
+            -DSPECTRAL_CUDA_ARCH=75
+
+      - name: Build
+        run: cmake --build build --parallel $(nproc)

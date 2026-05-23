@@ -3,9 +3,7 @@
 #include "AboutComponent.h"
 
 // =============================================================================
-PluginEditor::PluginEditor (PluginProcessor& p)
-    : AudioProcessorEditor (&p),
-      processor (p)
+PluginEditor::PluginEditor (PluginProcessor& p) : AudioProcessorEditor (&p), processor (p)
 {
     // ---- Menu bar -----------------------------------------------------------
     menuBar.setModel (this);
@@ -21,8 +19,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     liveButton.setClickingTogglesState (false);
     fileButton.setClickingTogglesState (false);
 
-    liveButton.onClick = [this] { onLiveClicked(); };
-    fileButton.onClick = [this] { onFileClicked(); };
+    liveButton.onClick = [this] { onLiveClicked (); };
+    fileButton.onClick = [this] { onFileClicked (); };
 
     // ---- Initial size -------------------------------------------------------
     setSize (1024, 512 + kToolbarH + kMenuBarH);
@@ -30,12 +28,12 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     setResizeLimits (512, 256 + kToolbarH + kMenuBarH, 2560, 1440 + kToolbarH + kMenuBarH);
 
     // ---- Forward sample rate ------------------------------------------------
-    const double sr = p.getSampleRate();
+    const double sr = p.getSampleRate ();
     if (sr > 0.0)
         waterfall.setSampleRate (sr);
 }
 
-PluginEditor::~PluginEditor()
+PluginEditor::~PluginEditor ()
 {
     menuBar.setModel (nullptr);
     processor.unregisterEditor (this);
@@ -46,12 +44,12 @@ void PluginEditor::paint (juce::Graphics& g)
 {
     // The waterfall owns its own OpenGL surface and fills its bounds entirely.
     // We only need to paint the toolbar strip.
-    g.fillAll (juce::Colour (0xff0a0a14));  // near-black navy, matches fog colour
+    g.fillAll (juce::Colour (0xff0a0a14)); // near-black navy, matches fog colour
 }
 
-void PluginEditor::resized()
+void PluginEditor::resized ()
 {
-    auto area = getLocalBounds();
+    auto area = getLocalBounds ();
 
     menuBar.setBounds (area.removeFromTop (kMenuBarH));
 
@@ -63,19 +61,19 @@ void PluginEditor::resized()
 }
 
 // ---------------------------------------------------------------------------
-void PluginEditor::parentHierarchyChanged()
+void PluginEditor::parentHierarchyChanged ()
 {
-    AudioProcessorEditor::parentHierarchyChanged();
+    AudioProcessorEditor::parentHierarchyChanged ();
     // Set the window icon once the component has a native peer.
     // Works in standalone mode; most plugin hosts ignore setIcon().
-    if (auto* peer = getPeer())
+    if (auto* peer = getPeer ())
         peer->setIcon (AboutComponent::createIcon (256));
 }
 
 // ---------------------------------------------------------------------------
-juce::StringArray PluginEditor::getMenuBarNames()
+juce::StringArray PluginEditor::getMenuBarNames ()
 {
-    return { "Help" };
+    return {"Help"};
 }
 
 juce::PopupMenu PluginEditor::getMenuForIndex (int menuIndex, const juce::String&)
@@ -89,32 +87,31 @@ juce::PopupMenu PluginEditor::getMenuForIndex (int menuIndex, const juce::String
 void PluginEditor::menuItemSelected (int menuItemID, int /*topLevelMenuIndex*/)
 {
     if (menuItemID == aboutItem)
-        AboutComponent::show();
+        AboutComponent::show ();
 }
 
 // =============================================================================
-void PluginEditor::onLiveClicked()
+void PluginEditor::onLiveClicked ()
 {
-    waterfall.switchToLiveStream();
+    waterfall.switchToLiveStream ();
     liveButton.setEnabled (false);
     fileButton.setEnabled (true);
 }
 
-void PluginEditor::onFileClicked()
+void PluginEditor::onFileClicked ()
 {
     // Launch async so we never block the message thread waiting on the OS
     // file dialog — JUCE requires the async overload in plugin contexts.
-    fileChooser.launchAsync (
-        juce::FileBrowserComponent::openMode |
-        juce::FileBrowserComponent::canSelectFiles,
-        [this] (const juce::FileChooser& fc)
-        {
-            auto result = fc.getResult();
-            if (result == juce::File{})
-                return;   // user cancelled
+    fileChooser.launchAsync (juce::FileBrowserComponent::openMode |
+                                 juce::FileBrowserComponent::canSelectFiles,
+                             [this] (const juce::FileChooser& fc)
+                             {
+                                 auto result = fc.getResult ();
+                                 if (result == juce::File{})
+                                     return; // user cancelled
 
-            waterfall.loadStaticFile (result);
-            liveButton.setEnabled (true);
-            fileButton.setEnabled (false);
-        });
+                                 waterfall.loadStaticFile (result);
+                                 liveButton.setEnabled (true);
+                                 fileButton.setEnabled (false);
+                             });
 }

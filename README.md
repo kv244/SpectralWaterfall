@@ -1,5 +1,7 @@
 # Spectral Waterfall Visualizer
 
+[![CI](https://github.com/kv244/SpectralWaterfall/actions/workflows/ci.yml/badge.svg)](https://github.com/kv244/SpectralWaterfall/actions/workflows/ci.yml)
+
 Real-time 3D audio spectrum waterfall for JUCE 8, accelerated end-to-end on
 CUDA with zero-copy CUDA↔OpenGL interop. Targets NVIDIA Ada (RTX 4070
 Laptop, `sm_89`). Two render modes share a single shader: a rolling

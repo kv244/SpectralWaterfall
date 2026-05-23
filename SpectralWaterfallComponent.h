@@ -33,14 +33,17 @@
 
 #include "CudaProcessor.h"
 
-class SpectralWaterfallComponent : public juce::Component,
-                                   public juce::OpenGLRenderer
+class SpectralWaterfallComponent : public juce::Component, public juce::OpenGLRenderer
 {
-public:
-    enum class Mode { LiveStream, StaticFile };
+  public:
+    enum class Mode
+    {
+        LiveStream,
+        StaticFile
+    };
 
-    SpectralWaterfallComponent();
-    ~SpectralWaterfallComponent() override;
+    SpectralWaterfallComponent ();
+    ~SpectralWaterfallComponent () override;
 
     // ---- Host plugin integration ------------------------------------------
 
@@ -56,29 +59,29 @@ public:
     bool loadStaticFile (const juce::File& file);
 
     /** UI thread. Switch back to LiveStream mode. */
-    void switchToLiveStream();
+    void switchToLiveStream ();
 
-    Mode getMode() const noexcept { return mode.load (std::memory_order_acquire); }
+    Mode getMode () const noexcept { return mode.load (std::memory_order_acquire); }
 
     // ---- juce::Component ---------------------------------------------------
-    void paint    (juce::Graphics&) override {}   // disabled; GL paints
-    void resized() override;
+    void paint (juce::Graphics&) override {} // disabled; GL paints
+    void resized () override;
 
     // ---- juce::OpenGLRenderer ---------------------------------------------
-    void newOpenGLContextCreated() override;
-    void renderOpenGL()            override;
-    void openGLContextClosing()    override;
+    void newOpenGLContextCreated () override;
+    void renderOpenGL () override;
+    void openGLContextClosing () override;
 
-private:
+  private:
     // ---- GL helpers --------------------------------------------------------
-    bool buildShaders();
-    bool buildLiveGeometry();                          // height-VBO + index EBO
-    bool buildStaticGeometry (int numRows);            // resized for the file
-    void releaseGeometry();
-    void setCameraUniforms();
+    bool buildShaders ();
+    bool buildLiveGeometry (); // height-VBO + index EBO
+    bool buildStaticGeometry (int numRows); // resized for the file
+    void releaseGeometry ();
+    void setCameraUniforms ();
 
     // ---- State -------------------------------------------------------------
-    juce::OpenGLContext   openGLContext;
+    juce::OpenGLContext openGLContext;
     std::unique_ptr<juce::OpenGLShaderProgram> shader;
 
     // Cached uniform handles (re-located after each shader rebuild)
@@ -92,28 +95,28 @@ private:
     GLuint vao = 0;
     GLuint vboHeights = 0;
     GLuint ebo = 0;
-    int    indexCount = 0;
-    int    geometryNumRows = 0;          // either NUM_HISTORY_ROWS or numHops
+    int indexCount = 0;
+    int geometryNumRows = 0; // either NUM_HISTORY_ROWS or numHops
 
     // CUDA backend
     CudaProcessor cuda;
 
     // Mode flip-flop, set from UI, read from GL thread.
-    std::atomic<Mode>  mode { Mode::LiveStream };
-    std::atomic<bool>  pendingStaticUpload { false };
-    std::atomic<bool>  pendingLiveRebuild  { false };
+    std::atomic<Mode> mode{Mode::LiveStream};
+    std::atomic<bool> pendingStaticUpload{false};
+    std::atomic<bool> pendingLiveRebuild{false};
 
     // Static-file data, prepared on UI thread, consumed on GL thread.
-    std::mutex                  staticDataMutex;
-    juce::AudioBuffer<float>    staticPcmMono;
-    double                      staticSampleRate = 44100.0;
+    std::mutex staticDataMutex;
+    juce::AudioBuffer<float> staticPcmMono;
+    double staticSampleRate = 44100.0;
 
     // Sample rate (live)
-    std::atomic<double> sampleRate { 44100.0 };
+    std::atomic<double> sampleRate{44100.0};
 
     // Camera
-    juce::Time           startTime { juce::Time::getCurrentTime() };
-    float                cameraOrbit = 0.0f;
+    juce::Time startTime{juce::Time::getCurrentTime ()};
+    float cameraOrbit = 0.0f;
 
     // Audio-format support for loadStaticFile().
     juce::AudioFormatManager audioFormatManager;

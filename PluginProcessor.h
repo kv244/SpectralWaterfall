@@ -7,29 +7,29 @@
 class PluginEditor;
 
 // =============================================================================
-class PluginProcessor  : public juce::AudioProcessor
+class PluginProcessor : public juce::AudioProcessor
 {
-public:
-    PluginProcessor();
-    ~PluginProcessor() override;
+  public:
+    PluginProcessor ();
+    ~PluginProcessor () override;
 
     // ---- AudioProcessor interface -------------------------------------------
-    void prepareToPlay  (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override;
-    void processBlock   (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void prepareToPlay (double sampleRate, int samplesPerBlock) override;
+    void releaseResources () override;
+    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
-    juce::AudioProcessorEditor* createEditor() override;
-    bool hasEditor() const override { return true; }
+    juce::AudioProcessorEditor* createEditor () override;
+    bool hasEditor () const override { return true; }
 
-    const juce::String getName() const override { return "SpectralWaterfall"; }
+    const juce::String getName () const override { return "SpectralWaterfall"; }
 
-    bool   acceptsMidi()  const override { return false; }
-    bool   producesMidi() const override { return false; }
-    bool   isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
+    bool acceptsMidi () const override { return false; }
+    bool producesMidi () const override { return false; }
+    bool isMidiEffect () const override { return false; }
+    double getTailLengthSeconds () const override { return 0.0; }
 
-    int  getNumPrograms()    override { return 1; }
-    int  getCurrentProgram() override { return 0; }
+    int getNumPrograms () override { return 1; }
+    int getCurrentProgram () override { return 0; }
     void setCurrentProgram (int) override {}
     const juce::String getProgramName (int) override { return {}; }
     void changeProgramName (int, const juce::String&) override {}
@@ -47,14 +47,14 @@ public:
     //  itself atomically so processBlock can call it safely even on the RT
     //  thread while the editor is being constructed or torn down on the
     //  message thread.
-    void registerEditor   (PluginEditor* e);
+    void registerEditor (PluginEditor* e);
     void unregisterEditor (PluginEditor* e);
 
-private:
+  private:
     // Non-owning, atomic. Written only on the message thread (JUCE guarantees
     // createEditor / deleteEditor are message-thread-only). Read on the RT
     // thread in processBlock with acquire ordering.
-    std::atomic<PluginEditor*> activeEditor { nullptr };
+    std::atomic<PluginEditor*> activeEditor{nullptr};
 
     // Scratch mono buffer allocated in prepareToPlay to avoid heap allocation
     // on the RT thread. processBlock mixes channels into this before handing
