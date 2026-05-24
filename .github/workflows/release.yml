@@ -1,0 +1,146 @@
+name: Release
+
+# Trigger: push a tag of the form v1.2.3
+#
+# Release workflow:
+#   1. Update AppVersion.h and CMakeLists.txt VERSION to the new version.
+#   2. Commit: git commit -m "Release v1.2.0"
+#   3. Tag:    git tag v1.2.0
+#   4. Push:   git push origin main --tags
+#
+# The workflow builds the project on Windows, packages it with WiX v4
+# into a single MSI, and publishes a GitHub Release.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write   # required to create GitHub Releases
+
+jobs:
+  build-and-release:
+    name: Build MSI and publish release
+    runs-on: windows-2022
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Strip the leading "v" from the tag (v1.2.0 → 1.2.0).
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # Install CUDA Toolkit (nvcc + cudart + cufft).
+      # visual_studio_integration lets nvcc locate the MSVC host compiler.
+      - name: Install CUDA 12.4
+        uses: jimver/cuda-toolkit@v0.2.16
+        with:
+          cuda: '12.4.0'
+          method: network
+          sub-packages: '["nvcc", "cudart", "cufft", "visual_studio_integration"]'
+
+      # Set up the MSVC x64 toolchain (cl.exe, link.exe, ninja, etc.).
+      - name: Set up MSVC x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # Cache JUCE source to avoid re-cloning on every release run.
+      - name: Cache JUCE
+        id: cache-juce
+        uses: actions/cache@v4
+        with:
+          path: JUCE
+          key: juce-8.0.7-windows
+
+      - name: Clone JUCE 8.0.7
+        if: steps.cache-juce.outputs.cache-hit != 'true'
+        shell: bash
+        run: git clone --depth 1 --branch 8.0.7 https://github.com/juce-framework/JUCE.git JUCE
+
+      # ---------------------------------------------------------------------------
+      # Build
+      # ---------------------------------------------------------------------------
+      - name: Configure (CMake + Ninja)
+        run: |
+          cmake -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            "-DJUCE_PATH=$env:GITHUB_WORKSPACE/JUCE" `
+            -DSPECTRAL_CUDA_ARCH=89
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      # ---------------------------------------------------------------------------
+      # Locate the cuFFT DLL that was installed by jimver/cuda-toolkit.
+      # The DLL name carries the API version (e.g. cufft64_11.dll) and must be
+      # preserved exactly so Windows can satisfy the import at runtime.
+      # ---------------------------------------------------------------------------
+      - name: Locate cuFFT DLL
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem "$env:CUDA_PATH\bin\cufft64_*.dll" |
+                   Select-Object -First 1
+          if (-not $dll) { throw "cuFFT DLL not found under $env:CUDA_PATH\bin\" }
+          Write-Host "cuFFT DLL: $($dll.FullName)"
+          "CUFFT_PATH=$($dll.FullName)" | Out-File -Append $env:GITHUB_ENV
+
+      # ---------------------------------------------------------------------------
+      # Package with WiX v4
+      # ---------------------------------------------------------------------------
+      - name: Install WiX v4
+        run: dotnet tool install --global wix
+
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          $ver        = "${{ steps.version.outputs.version }}"
+          $standalone = "build\SpectralWaterfall_artefacts\Release\Standalone\Spectral Waterfall.exe"
+          $vst3dir    = "build\SpectralWaterfall_artefacts\Release\VST3"
+          $msi        = "SpectralWaterfall-v${ver}-windows.msi"
+
+          wix build installer\SpectralWaterfall.wxs `
+            -arch x64 `
+            -d ProductVersion=$ver `
+            "-d StandaloneExe=$standalone" `
+            "-d VST3Dir=$vst3dir" `
+            "-d CuFFTDll=$env:CUFFT_PATH" `
+            -o $msi
+
+          Write-Host "Built: $msi  ($([math]::Round((Get-Item $msi).Length/1MB,1)) MB)"
+
+      # ---------------------------------------------------------------------------
+      # Publish GitHub Release
+      # ---------------------------------------------------------------------------
+      - name: Write release notes
+        shell: bash
+        run: |
+          ver="${{ steps.version.outputs.version }}"
+          cat > release-notes.md << EOF
+          ## Spectral Waterfall v${ver}
+
+          ### Installation
+          Run \`SpectralWaterfall-v${ver}-windows.msi\`. The installer sets up:
+          - **Standalone application** → \`Program Files\\Spectral Waterfall\\Spectral Waterfall.exe\`
+          - **VST3 plug-in** → \`Program Files\\Common Files\\VST3\\Spectral Waterfall.vst3\\\`
+          - **cuFFT runtime DLL** alongside both (not bundled with GPU drivers)
+
+          ### System requirements
+          - Windows 10 / 11 (64-bit)
+          - NVIDIA GPU with driver ≥ 522.06 (ships CUDA 11.8 runtime)
+          - Ada Lovelace GPU (RTX 4000 series) recommended — binary targets SM 8.9
+          EOF
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          ver="${{ steps.version.outputs.version }}"
+          gh release create "${{ github.ref_name }}" \
+            "SpectralWaterfall-v${ver}-windows.msi" \
+            --title "Spectral Waterfall v${ver}" \
+            --notes-file release-notes.md

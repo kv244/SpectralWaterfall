@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WiX v4 installer for Spectral Waterfall.
+
+  Build from the repo root (after building the CMake project):
+
+    wix build installer\SpectralWaterfall.wxs ^
+      -arch x64 ^
+      -d ProductVersion=1.2.0 ^
+      -d StandaloneExe=build\SpectralWaterfall_artefacts\Release\Standalone\Spectral Waterfall.exe ^
+      -d VST3Dir=build\SpectralWaterfall_artefacts\Release\VST3 ^
+      -d CuFFTDll=C:\...\bin\cufft64_11.dll ^
+      -o SpectralWaterfall-v1.2.0-windows.msi
+
+  IMPORTANT: UpgradeCode must NEVER change across versions — it is the
+  permanent identity of this product in the Windows Installer database.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Package
+      Name="Spectral Waterfall"
+      Manufacturer="Julia"
+      Version="$(ProductVersion)"
+      UpgradeCode="{C8F7A3E2-5D9B-4F0C-83A1-6E4D29B07F58}"
+      Scope="perMachine"
+      Description="Real-time 3D spectral waterfall visualizer — CUDA + OpenGL + JUCE">
+
+    <!-- Silently uninstall the previous version before installing the new
+         one. Schedule afterInstallInitialize so the old files are gone
+         before new ones are written. -->
+    <MajorUpgrade
+        Schedule="afterInstallInitialize"
+        DowngradeErrorMessage="A newer version of Spectral Waterfall is already installed." />
+
+    <!-- Embed the cabinet directly in the MSI (single-file deployment). -->
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="Standalone"
+             Title="Standalone Application"
+             Level="1"
+             Description="Real-time visualizer as a standalone application (Program Files).">
+      <ComponentGroupRef Id="StandaloneApp" />
+    </Feature>
+
+    <Feature Id="VST3Plugin"
+             Title="VST3 Plug-in"
+             Level="1"
+             Description="VST3 plug-in for use in a compatible DAW (Common Files\VST3).">
+      <ComponentGroupRef Id="VST3" />
+    </Feature>
+
+  </Package>
+
+  <!-- =========================================================================
+       Directory layout
+       ========================================================================= -->
+  <Fragment>
+
+    <!-- Standalone: C:\Program Files\Spectral Waterfall\ -->
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLDIR" Name="Spectral Waterfall" />
+    </StandardDirectory>
+
+    <!-- VST3: C:\Program Files\Common Files\VST3\Spectral Waterfall.vst3\ -->
+    <StandardDirectory Id="CommonFiles6432Folder">
+      <Directory Id="VST3CommonDir" Name="VST3">
+        <Directory Id="VST3BundleDir" Name="Spectral Waterfall.vst3">
+          <Directory Id="VST3ContentsDir" Name="Contents">
+            <Directory Id="VST3BinDir"  Name="x86_64-win" />
+            <Directory Id="VST3ResDir"  Name="Resources"  />
+          </Directory>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <!-- Start Menu: Programs\Spectral Waterfall\ -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppMenuDir" Name="Spectral Waterfall" />
+    </StandardDirectory>
+
+  </Fragment>
+
+  <!-- =========================================================================
+       Standalone application
+       ========================================================================= -->
+  <Fragment>
+    <ComponentGroup Id="StandaloneApp">
+
+      <!-- Main executable + Start Menu shortcut. -->
+      <Component Id="StandaloneExeComp"
+                 Directory="INSTALLDIR"
+                 Guid="{D1E2F3A4-B5C6-4D7E-8F90-A1B2C3D4E5F6}">
+        <File Id="SpectralWaterfallExe"
+              Source="$(StandaloneExe)"
+              Name="Spectral Waterfall.exe"
+              KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut"
+                    Directory="AppMenuDir"
+                    Name="Spectral Waterfall"
+                    Description="Real-time 3D spectral waterfall visualizer"
+                    WorkingDirectory="INSTALLDIR"
+                    Advertise="yes" />
+        </File>
+      </Component>
+
+      <!-- cuFFT runtime DLL alongside the EXE.
+           Required at load time; not bundled with GPU drivers. -->
+      <Component Id="CuFFTStandaloneComp"
+                 Directory="INSTALLDIR"
+                 Guid="{A0B1C2D3-E4F5-4678-9012-B3C4D5E6F7A8}">
+        <File Id="CuFFTDllStandalone"
+              Source="$(CuFFTDll)"
+              KeyPath="yes" />
+      </Component>
+
+      <!-- Registry key whose sole purpose is to anchor RemoveFolder.
+           Without a KeyPath, Windows Installer won't track the component;
+           without RemoveFolder, the Start Menu subfolder is left behind
+           on uninstall. -->
+      <Component Id="StartMenuCleanupComp"
+                 Directory="AppMenuDir"
+                 Guid="{B1C2D3E4-F5A6-4789-0123-C4D5E6F7A8B9}">
+        <RegistryValue Root="HKCU"
+                       Key="Software\SpectralWaterfall"
+                       Name="StartMenuInstalled"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+        <RemoveFolder Id="AppMenuDirRemove"
+                      Directory="AppMenuDir"
+                      On="uninstall" />
+      </Component>
+
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- =========================================================================
+       VST3 plug-in bundle
+       ========================================================================= -->
+  <Fragment>
+    <ComponentGroup Id="VST3">
+
+      <!-- The VST3 DLL (Contents/x86_64-win/). -->
+      <Component Id="VST3DllComp"
+                 Directory="VST3BinDir"
+                 Guid="{E2F3A4B5-C6D7-4E8F-9001-B2C3D4E5F6A7}">
+        <File Id="VST3DllFile"
+              Source="$(VST3Dir)\Spectral Waterfall.vst3\Contents\x86_64-win\Spectral Waterfall.vst3"
+              Name="Spectral Waterfall.vst3"
+              KeyPath="yes" />
+      </Component>
+
+      <!-- cuFFT DLL alongside the VST3 DLL so DAW process can find it. -->
+      <Component Id="CuFFTVST3Comp"
+                 Directory="VST3BinDir"
+                 Guid="{C3D4E5F6-A7B8-4901-2345-D5E6F7A8B9C0}">
+        <File Id="CuFFTDllVST3"
+              Source="$(CuFFTDll)"
+              KeyPath="yes" />
+      </Component>
+
+      <!-- moduleinfo.json (Contents/Resources/). -->
+      <Component Id="VST3ModuleInfoComp"
+                 Directory="VST3ResDir"
+                 Guid="{F3A4B5C6-D7E8-4F90-A112-C3D4E5F6A7B8}">
+        <File Id="VST3ModuleInfoFile"
+              Source="$(VST3Dir)\Spectral Waterfall.vst3\Contents\Resources\moduleinfo.json"
+              Name="moduleinfo.json"
+              KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+  </Fragment>
+
+</Wix>
