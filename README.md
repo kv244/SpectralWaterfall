@@ -62,13 +62,21 @@ processBlock ──► SpscFifo (lock-free) ──► GL render thread (60 Hz)
 
 ## Build
 
-```
-nvcc -std=c++17 -O3 -arch=sm_89 -Xcompiler -fPIC -c CudaProcessor.cu
+Requires CUDA Toolkit 12+, JUCE 8, CMake 3.22+, and Ninja. On Windows open
+a VS 2022 x64 Developer PowerShell:
+
+```powershell
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
+      -DJUCE_PATH="C:/path/to/JUCE"
+cmake --build build --parallel
 ```
 
-Link against `cudart`, `cufft`, and your platform's GL loader. JUCE's
-`juce_opengl` is fine on the C++ side; the `.cu` side has platform-guarded
-includes for `GL/gl.h` / `OpenGL/gl3.h`.
+Outputs:
+- `build/SpectralWaterfall_artefacts/Release/Standalone/Spectral Waterfall.exe`
+- `build/SpectralWaterfall_artefacts/Release/VST3/Spectral Waterfall.vst3/`
+
+Override the CUDA architecture with `-DSPECTRAL_CUDA_ARCH=86` (Ampere) or
+`-DSPECTRAL_CUDA_ARCH=75` (Turing). Default is `89` (Ada / RTX 4000 series).
 
 ## Host plugin integration
 

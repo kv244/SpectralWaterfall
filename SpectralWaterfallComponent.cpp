@@ -519,10 +519,10 @@ void SpectralWaterfallComponent::renderOpenGL ()
     // ---- Handle pending mode transitions (GL thread, context current) ------
     if (pendingLiveRebuild.exchange (false, std::memory_order_acq_rel))
     {
-        buildLiveGeometry ();
-        // The cuda processor's currently registered VBO is whatever the last
-        // mode set up. Rebind to the new live VBO.
-        cuda.rebindVbo (vboHeights, CudaProcessor::NUM_HISTORY_ROWS);
+        if (buildLiveGeometry ())
+            cuda.rebindVbo (vboHeights, CudaProcessor::NUM_HISTORY_ROWS);
+        else
+            DBG ("buildLiveGeometry failed during live rebuild");
     }
 
     if (pendingStaticUpload.exchange (false, std::memory_order_acq_rel))
@@ -541,13 +541,18 @@ void SpectralWaterfallComponent::renderOpenGL ()
             const int numHops =
                 (totalSamples - CudaProcessor::FFT_SIZE) / CudaProcessor::HOP_SIZE + 1;
 
-            buildStaticGeometry (numHops); // resizes VBO + re-registers with CUDA
-
-            int outRows = 0;
-            if (!cuda.processStaticFile (localCopy.getReadPointer (0),
-                                         static_cast<std::size_t> (totalSamples), sr, outRows))
+            if (!buildStaticGeometry (numHops))
             {
-                DBG ("processStaticFile failed — VBO may be empty.");
+                DBG ("buildStaticGeometry failed — skipping processStaticFile");
+            }
+            else
+            {
+                int outRows = 0;
+                if (!cuda.processStaticFile (localCopy.getReadPointer (0),
+                                             static_cast<std::size_t> (totalSamples), sr, outRows))
+                {
+                    DBG ("processStaticFile failed — VBO may be empty.");
+                }
             }
             // Static mode renders with frame index = 0 (no scrolling).
         }
